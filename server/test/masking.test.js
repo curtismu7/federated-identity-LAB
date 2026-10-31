@@ -82,7 +82,7 @@ test('zero-width characters interleaved, fullwidth forms and a secret placed aft
   assert.ok(!cleanFree(`use ${full} now`).includes(v.slice(0, 10)), 'fullwidth forms are folded');
   for (const fn of [cleanFree, cleanValue]) {
     const out = fn(`${'a '.repeat(9995)}${v}`, 40000);
-    assert.ok(!out.includes(v.slice(0, 12)), 'a secret straddling the old 20,000 character cut is masked');
+    assert.ok(!out.includes(v.slice(0, 8)), 'not even the first characters of a secret straddling the old 20,000 character cut survive');
     assert.ok(!fn(`${'b '.repeat(14000)}${SECRETS.pem}`, 40000).includes('MIIEvQ'));
   }
 });
