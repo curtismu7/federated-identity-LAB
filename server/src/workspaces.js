@@ -14,7 +14,7 @@ export function workspaceFrom(req) {
   return typeof raw === 'string' && WORKSPACE_RE.test(raw) && !/^[0-9a-f]{24,}$/.test(raw) ? raw : null;
 }
 
-export function createWorkspaces({ max = 500, ttlMs = 60 * 60 * 1000, now = Date.now, rand = (n) => crypto.randomBytes(n) } = {}) {
+export function createWorkspaces({ max = 500, ttlMs = 60 * 60 * 1000, now = Date.now, makeRand = () => (n) => crypto.randomBytes(n) } = {}) {
   const map = new Map(); // id -> { engines: Map(vertical -> Engine), at }
   const sweep = () => { const t = now(); for (const [id, v] of map) if (t - v.at > ttlMs) map.delete(id); };
   return {
@@ -23,7 +23,7 @@ export function createWorkspaces({ max = 500, ttlMs = 60 * 60 * 1000, now = Date
       let v = map.get(id);
       if (!v) { if (map.size >= max) throw refuse('workspaces_full', 'the lab is holding as many visitors as it allows: try again later', 503); v = { engines: new Map(), at: 0 }; map.set(id, v); }
       v.at = now();
-      if (!v.engines.has(vertical)) v.engines.set(vertical, new Engine(cast, { rand }));
+      if (!v.engines.has(vertical)) v.engines.set(vertical, new Engine(cast, { rand: makeRand() }));
       return v.engines.get(vertical);
     },
     peek(id, vertical) { sweep(); return map.get(id)?.engines.get(vertical) || null; },

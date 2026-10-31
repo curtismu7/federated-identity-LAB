@@ -19,7 +19,7 @@ const DOCS = Object.fromEntries(DIAGRAM_NAMES.map((n) => [n, loadDiagram(n)]));
 export const rawDiagram = (name = DIAGRAM_NAMES[0]) => DOCS[name];
 
 export function buildDiagram(cast, name = DIAGRAM_NAMES[0]) {
-  const d = fillDeep(DOCS[name] || DOCS[DIAGRAM_NAMES[0]], cast);
+  const d = fillDeep(typeof name === 'string' && Object.hasOwn(DOCS, name) ? DOCS[name] : DOCS[DIAGRAM_NAMES[0]], cast);
   return {
     name: d.id, title: d.title, intro: d.lede,
     nodes: d.nodes.map((n) => ({ id: n.id, label: n.label, kind: n.group, x: n.x, y: n.y })),
