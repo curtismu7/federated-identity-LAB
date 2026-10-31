@@ -147,7 +147,7 @@ test('percent-encoded secrets (once, twice, three times, and fullwidth percent s
 });
 
 test('keyword plus JSON-key secrets and glued assignments are masked, whatever the quoting', () => {
-  const cases = [['{"password":"x"}', 'x"'], ['{"token":"abc"}', 'abc'], ["{'secret':'hunter22'}", 'hunter22'], ['a","b":"password: zq81xkzq', 'zq81xkzq'], ['xpassword=zq81xkzq', 'zq81xkzq'], ['{"api_key":"k"}', ':"k'], ['{"client-secret": "s3cr3tvalue"}', 's3cr3tvalue'], ['pw:zq81xkzq', 'zq81xkzq'], ['"credential":"c"', ':"c'], ['{"passphrase" : "correct horse"}', 'correct']];
+  const cases = [['{"password":"x"}', 'x"'], ['{"token":"abc"}', 'abc'], ["{'secret':'hunter22'}", 'hunter22'], ['a","b":"password: zq81xkzq', 'zq81xkzq'], ['xpassword=zq81xkzq', 'zq81xkzq'], ['{"api_key":"k"}', ':"k'], ['{"client-secret": "s3cr3tvalue"}', 's3cr3tvalue'], ['pw:zq81xkzq', 'zq81xkzq'], ['"credential":"c"', ':"c'], ['{"password":"x" }', ':"x'], ['{ "secret" : "q" , "n": 1 }', ':"q'], ["{'token':'z' }", ":'z"], ['{"token":7 }', ':7'], ['{"password":9 , "a":1}', ':9'], ['{"passphrase" : "correct horse"}', 'correct']];
   for (const [text, probe] of cases) for (const [name, fn] of ALL) assert.ok(!fn(text).includes(probe), `${text} through ${name}`);
   assert.equal(cleanFree('the password policy is documented'), 'the password policy is documented', 'a word on its own is not a secret');
 });
