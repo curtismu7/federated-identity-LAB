@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DETECTORS, MAX_FREE, cleanFree, findCredentials, maskText } from '../src/credentials.js';
 import { cleanValue } from '../src/clean.js';
-import { maskDeep } from '../src/mask.js';
+import { maskDeep, maskResponseText } from '../src/mask.js';
 import { C, GW, newEngine } from './helpers.js';
 
 // Credential-shaped test values are assembled at run time, so no such string sits in the repository.
@@ -111,4 +111,54 @@ test('a credential typed into a name, description, claim, extra claim, key name 
     assert.ok(!all.includes(probeOf(name, v)), `${name} is nowhere in the answers, the state or the hops`);
     assert.ok(!Buffer.from(m.mintedToken.split('.')[1], 'base64url').toString().includes(probeOf(name, v)), `${name} is not inside the minted token either`);
   }
+});
+
+// ---- review patterns: invisible characters, percent-encoding, JSON-key and glued secrets, expansion bombs --------------------------------------------------------------
+const IGNORABLE = [0x3164, 0xffa0, 0x115f, 0x1160, 0x034f, 0x180e, 0xfe00, 0xfe0f, 0xe0001, 0xe0020, 0xe007f, 0x061c, 0x206a, 0x206f, 0x17b4, 0x17b5, 0xfffd, 0x200b, 0x200d, 0x2060, 0xad, 0xfeff, 0x202e, 0x2066];
+const ALL = [['cleanFree', (x) => cleanFree(x, 2000)], ['cleanValue', (x) => cleanValue(x, 2000)], ['maskResponseText', (x) => maskResponseText(x)]];
+const pct = (text) => [...Buffer.from(text)].map((b) => `%${b.toString(16).padStart(2, '0')}`).join('');
+const probeFor = (name, v) => (name === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : name === 'bearer' ? 'tokenvalue' : name === 'assignment' || name === 'plain' ? 'hunter2hunter2' : name === 'pw' ? 'correcthorse' : name === 'userinfo' ? 's3cr3tpassw0rd' : name === 'authz' ? 'abcdef123456' : v);
+
+test('every Default_Ignorable, Cf and U+FFFD character woven through a secret still lets it be masked, by all three cleaners', () => {
+  const v = SECRETS.github;
+  for (const cp of IGNORABLE) {
+    const ch = String.fromCodePoint(cp); const woven = v.split('').join(ch);
+    for (const [name, fn] of ALL) { const out = fn(`use ${woven} now`); assert.ok(!out.includes(v.slice(0, 8)), `U+${cp.toString(16)} in ${name}`); assert.ok(!out.includes(ch) || name === 'x', `U+${cp.toString(16)} is gone from ${name}`); }
+  }
+  const range = Array.from({ length: 16 }, (_, i) => String.fromCodePoint(0xfe00 + i)).join('');
+  assert.ok(!cleanFree(`${v.slice(0, 6)}${range}${v.slice(6)}`).includes(v.slice(0, 8)), 'a run of variation selectors');
+  const tags = Array.from({ length: 20 }, (_, i) => String.fromCodePoint(0xe0020 + i)).join('');
+  assert.ok(!cleanValue(`${v.slice(0, 6)}${tags}${v.slice(6)}`).includes(v.slice(0, 8)), 'a run of tag characters');
+});
+
+test('percent-encoded secrets (once, twice, three times, and fullwidth percent signs) are decoded before masking, in every cleaner and the response mask', () => {
+  for (const [name, v] of Object.entries(SECRETS)) {
+    const probe = probeFor(name, v);
+    const forms = { plain: v, once: pct(v), twice: pct(pct(v)), thrice: pct(pct(pct(v))), fullwidth: pct(v).replace(/%/g, String.fromCharCode(0xff05)) };
+    for (const [form, text] of Object.entries(forms)) for (const [fname, fn] of ALL) {
+      if (fname === 'maskResponseText' && (name === 'blob' || name === 'hex')) continue; // the response mask leaves long ids and hashes alone by design; the cleaners mask them on the way in
+      const out = fn(`note ${text} end`);
+      assert.ok(!out.includes(probe), `${name}/${form} through ${fname}`);
+      assert.ok(!out.includes(pct(probe)), `${name}/${form}: the encoded form is not left either (${fname})`);
+    }
+  }
+  assert.equal(cleanFree('100% sure %zz and %'), '100% sure %zz and %', 'text that merely contains a percent sign is left alone');
+  assert.ok(cleanFree(`${'%25'.repeat(5000)}41`).length < 2000, 'a percent bomb is bounded');
+});
+
+test('keyword plus JSON-key secrets and glued assignments are masked, whatever the quoting', () => {
+  const cases = [['{"password":"x"}', 'x"'], ['{"token":"abc"}', 'abc'], ["{'secret':'hunter22'}", 'hunter22'], ['a","b":"password: zq81xkzq', 'zq81xkzq'], ['xpassword=zq81xkzq', 'zq81xkzq'], ['{"api_key":"k"}', ':"k'], ['{"client-secret": "s3cr3tvalue"}', 's3cr3tvalue'], ['pw:zq81xkzq', 'zq81xkzq'], ['"credential":"c"', ':"c'], ['{"passphrase" : "correct horse"}', 'correct']];
+  for (const [text, probe] of cases) for (const [name, fn] of ALL) assert.ok(!fn(text).includes(probe), `${text} through ${name}`);
+  assert.equal(cleanFree('the password policy is documented'), 'the password policy is documented', 'a word on its own is not a secret');
+});
+
+test('an NFKC expansion bomb (30,000 characters that each become eighteen) is bounded in time and output', () => {
+  const bomb = String.fromCharCode(0xfdfa).repeat(30000); const t0 = Date.now();
+  for (const [name, fn] of ALL) assert.ok(name === 'maskResponseText' || fn(bomb).length <= 2000);
+  assert.ok(maskResponseText(bomb).length <= 200000);
+  assert.ok(Date.now() - t0 < 5000, `${Date.now() - t0} ms`);
+});
+
+test('the response mask changes nothing it does not have to: ordinary text, ids and hashes pass through unchanged', () => {
+  for (const t of ['The token stops at the gateway.', 'payments/agent-runner pod agent-runner-7d9f', `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`, 'https://gateway.fabrikam.example', '100% done']) assert.equal(maskResponseText(t), t);
 });

@@ -66,11 +66,14 @@ test('typing every credential shape into every field of every endpoint never ech
     };
     process.stdout.write = (c, ...a) => { out.push(String(c)); return realOut(c, ...a); }; process.stderr.write = (c, ...a) => { out.push(String(c)); return realErr(c, ...a); };
     try {
+      const pct = (t) => [...Buffer.from(t)].map((b) => `%${b.toString(16).padStart(2, '0')}`).join('');
       for (const [name, n] of Object.entries(NEEDLES)) {
-        const text = await sweep(n.raw);
-        assert.ok(!text.includes(n.probe), `${name}: the raw value is absent from every answer: ${text.split('\n').filter((l) => l.includes(n.probe)).map((l) => l.slice(0, 200)).join(' | ')}`);
-        const state = JSON.stringify(await (await get(url, '/api/state?mode=live')).json());
-        assert.ok(!state.includes(n.probe), `${name}: absent from the state afterwards`);
+        for (const [form, typed] of [['plain', n.raw], ['once-encoded', pct(n.raw)], ['twice-encoded', pct(pct(n.raw))]]) {
+          const text = await sweep(typed);
+          for (const probe of [n.probe, pct(n.probe), pct(pct(n.probe))]) assert.ok(!text.includes(probe), `${name}/${form}: the value is absent from every answer: ${text.split('\n').filter((l) => l.includes(probe)).map((l) => l.slice(0, 200)).join(' | ')}`);
+          const state = JSON.stringify(await (await get(url, '/api/state?mode=live')).json());
+          for (const probe of [n.probe, pct(n.probe)]) assert.ok(!state.includes(probe), `${name}/${form}: absent from the state afterwards`);
+        }
       }
     } finally { process.stdout.write = realOut; process.stderr.write = realErr; }
   });

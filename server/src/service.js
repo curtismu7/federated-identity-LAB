@@ -38,3 +38,9 @@ export function runAction({ ws, workspaces, vertical, cast, op, params, tracepar
   const truncated = e.hopsTruncated; e.hops = [];
   return { outcome, hops, hopsTruncated: truncated, traceparent: formatTraceparent(t.traceId, root), traceId: t.traceId, state: e.snapshot() };
 }
+
+// The public JWKS of one issuer as this workspace's engine publishes it now (a workspace that has done nothing yet has the seeded world).
+export function jwksFor(ws, workspaces, vertical, cast, issuerId) {
+  const e = workspaces.peek(ws, vertical) || new Engine(cast);
+  return e.jwksOf(issuerId);
+}

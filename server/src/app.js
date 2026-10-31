@@ -14,7 +14,7 @@ import { DIAGRAM_NAMES, buildDiagram } from './diagramData.js';
 import { InputError } from './errors.js';
 import { MOCK_TABLE } from './mockTable.js';
 import { createWorkspaces, workspaceFrom } from './workspaces.js';
-import { liveState, mockState, runAction } from './service.js';
+import { jwksFor, liveState, mockState, runAction } from './service.js';
 import { maskDeep } from './mask.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -30,6 +30,12 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
   app.use((_req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
 
   const api = express.Router();
+  // Only UTF-8 bodies are read: any other declared charset is refused before a parser can decode it.
+  api.use((req, res, next) => {
+    const m = /charset\s*=\s*"?([^;"\s]+)/i.exec(String(req.headers['content-type'] || ''));
+    if (m && !/^utf-?8$/i.test(m[1])) return res.status(415).json({ error: 'unsupported_charset' });
+    return next();
+  });
   api.use(express.json({ limit: '32kb' }));
   // Defence in depth: every JSON answer is masked for credential-shaped values, whatever path produced it (the one lab-minted token field is exempt: mask.js).
   api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send(maskDeep(b)); next(); });
@@ -50,6 +56,16 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     const vertical = verticalOf(req);
     if (mode === 'mock') return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) });
     return res.json({ mode, vertical, workspace: id, state: liveState(id, workspaces, vertical, castFor(req)) });
+  });
+
+  // The public key set an issuer publishes now (public halves only), for the page's own WebCrypto signature check. Same origin, Live only.
+  api.get('/issuers/:id/jwks', (req, res, next) => {
+    const id = ws(req, res); if (!id) return;
+    noStore(res);
+    try {
+      if (modeOf(req.query.mode) !== 'live') return res.status(409).json({ error: 'live_only', detail: 'Mock tables hold no keys: the browser check is Live only' });
+      return res.json(jwksFor(id, workspaces, verticalOf(req), castFor(req), typeof req.params.id === 'string' ? req.params.id : ''));
+    } catch (e) { return next(e); }
   });
 
   // Every write: Live only, strict top-level keys, one trace, hops, and the whole fresh state back. Refusals keep their honest HTTP status.

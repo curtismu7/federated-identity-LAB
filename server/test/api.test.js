@@ -160,3 +160,34 @@ test('a workspace is refused at the cap rather than evicting another', async () 
 test('zero outbound network attempts were made while the whole API ran (netguard)', () => {
   assert.deepEqual(guard.attempts, []);
 });
+
+test('the issuer key set endpoint (for the in-browser check): public RSA halves only, intact under the response mask, Live only, 404 without echoing, 503 when the issuer is down, and it follows a rotation', async () => {
+  const crypto = await import('node:crypto');
+  await withServer(async (url) => {
+    const g = async (id, mode = 'live', ws = 'jw1') => { const r = await get(url, `/api/issuers/${id}/jwks?mode=${mode}&vertical=finance`, W(ws)); return { status: r.status, text: await r.text() }; };
+    const a = await g('kube'); assert.equal(a.status, 200);
+    const j = JSON.parse(a.text); assert.equal(j.issuer, 'kube'); assert.deepEqual(j.keys.map((k) => k.kid), ['kube-key-1']);
+    for (const k of j.keys) { assert.deepEqual(Object.keys(k).sort(), ['alg', 'e', 'kid', 'kty', 'n', 'use']); assert.ok(crypto.createPublicKey({ key: { kty: k.kty, n: k.n, e: k.e }, format: 'jwk' }), 'a usable public key'); }
+    assert.ok(!/"d":|"p":|"q":|"dp"|"dq"|"qi"|PRIVATE/.test(a.text), 'no private material');
+    assert.equal((await g('kube', 'mock')).status, 409); assert.equal(JSON.parse((await g('kube', 'mock')).text).error, 'live_only');
+    const bad = await g('AKIAIOSFODNN7EXAMPLE'); assert.equal(bad.status, 404); assert.ok(!bad.text.includes('AKIA'));
+    assert.equal((await g('__proto__')).status, 404); assert.equal((await g('attacker')).status, 404);
+    await api(url, 'POST', '/api/issuers/kube/actions', { action: { action: 'rotate' } }, 'jw1');
+    assert.deepEqual(JSON.parse((await g('kube')).text).keys.map((k) => k.kid), ['kube-key-2'], 'the published set follows the rotation');
+    assert.deepEqual(JSON.parse((await g('kube', 'live', 'jw2')).text).keys.map((k) => k.kid), ['kube-key-1'], 'another workspace is untouched');
+    await api(url, 'POST', '/api/issuers/kube/actions', { action: { action: 'down' } }, 'jw1');
+    const down = await g('kube'); assert.equal(down.status, 503); assert.equal(JSON.parse(down.text).error, 'issuer_down');
+    assert.equal((await g('private')).status, 200, 'the private issuer still publishes (it is a different issuer)');
+  });
+});
+
+test('only UTF-8 request bodies are read: any other declared charset is 415 before a parser can decode it', async () => {
+  await withServer(async (url) => {
+    const send = (ct, body) => rawHttp(`${url}/api/clock`, { method: 'POST', headers: { 'content-type': ct, origin: url }, body });
+    const ok = JSON.stringify({ mode: 'live', vertical: 'finance', clock: { minutes: 1 } });
+    for (const cs of ['utf-16', 'utf-16le', 'iso-8859-1', 'latin1', 'windows-1252', 'utf-7', 'shift_jis', 'ascii', '"utf-32"']) assert.equal((await send(`application/json; charset=${cs}`, ok)).status, 415, cs);
+    for (const cs of ['utf-8', 'UTF-8', '"utf-8"']) assert.equal((await send(`application/json; charset=${cs}`, ok)).status, 200, cs);
+    assert.equal((await send('application/json', ok)).status, 200);
+    const r = await send('application/json; charset=utf-16', ok); assert.ok(!/utf-16/.test(r.text), 'the charset is not echoed');
+  });
+});

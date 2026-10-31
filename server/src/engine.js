@@ -158,6 +158,14 @@ export class Engine {
     return { issuer: meta.id, up: st.up };
   }
 
+  // The PUBLIC key set an issuer publishes now, for the in-browser signature check. Public halves only; a down issuer answers 503, as a real fetch would fail.
+  jwksOf(issuerId) {
+    const st = this.issuerState(issuerId);
+    need(st, 'unknown_issuer', 'no such issuer', 404);
+    need(st.up, 'issuer_down', 'the issuer does not answer key-set requests', 503);
+    return { issuer: issuerId, keys: this.publishedJwks(issuerId) };
+  }
+
   // ---------- key sets: validate at creation, refresh every fifteen lab minutes and on an unknown kid, keep the last known good set -----------------
   fetchKeyset(f) {
     if (f.jwksUri) {
