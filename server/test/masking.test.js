@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DETECTORS, MAX_FREE, cleanFree, findCredentials, maskText } from '../src/credentials.js';
+import { cleanValue } from '../src/clean.js';
 import { maskDeep } from '../src/mask.js';
-import { C, newEngine } from './helpers.js';
+import { C, GW, newEngine } from './helpers.js';
 
 // Credential-shaped test values are assembled at run time, so no such string sits in the repository.
 export const SECRETS = {
@@ -18,6 +19,11 @@ export const SECRETS = {
   assignment: ['pass', 'word=', 'hunter2hunter2'].join(''),
   blob: 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5',
   hex: 'deadbeef'.repeat(6),
+  plain: ['my pass', 'word is hunter2hunter2'].join(''),
+  pw: ['p', 'w: correcthorsebattery'].join(''),
+  userinfo: ['https://', 'user:s3cr3tpassw0rd@host.example/x'].join(''),
+  authz: ['Authoriz', 'ation: token abcdef123456'].join(''),
+  shortPrefixed: ['sk', '-abcdefghijkl'].join(''),
 };
 
 test('every credential shape is found and masked', () => {
@@ -33,7 +39,7 @@ test('every credential shape is found and masked', () => {
 test('cleanFree: masks, strips control and bidi characters, collapses space, caps, and never throws', () => {
   const v = SECRETS.github;
   assert.ok(!cleanFree(`token ${v}`).includes(v));
-  assert.equal(cleanFree('a\u0000b‮c  d'), 'a b c d');
+  assert.equal(cleanFree('a\u0000b‮c  d'), 'a bc d', 'a control character becomes a space; a bidi format character is deleted');
   assert.equal(cleanFree('x'.repeat(5000)).length <= MAX_FREE, true);
   assert.equal(cleanFree(undefined), ''); assert.equal(cleanFree(null), ''); assert.equal(cleanFree({}), '[object Object]');
   assert.equal(cleanFree('I need read access to review the change for the release'), 'I need read access to review the change for the release', 'ordinary text is left alone');
@@ -50,7 +56,7 @@ test('a secret split across the 400 character cap is still masked (masking happe
 
 test('detectors are linear: a hostile input of 20000 characters is scanned quickly', () => {
   const t0 = Date.now();
-  for (const bad of ['a'.repeat(20000), 'password' + ' '.repeat(20000), '-----BEGIN PRIVATE KEY-----' + 'x'.repeat(20000), 'sk-' + '-'.repeat(20000), 'Bearer ' + 'a'.repeat(20000), 'eyJ' + 'a.'.repeat(10000), ('a=').repeat(10000)]) maskText(bad);
+  for (const bad of ['a'.repeat(32000), 'password' + ' '.repeat(32000), '-----BEGIN PRIVATE KEY-----' + 'x'.repeat(32000), 'sk-' + '-'.repeat(32000), 'Bearer ' + 'a'.repeat(32000), 'eyJ' + 'a.'.repeat(16000), ('a=').repeat(16000), 'https://' + 'a:'.repeat(16000)]) cleanFree(bad);
   assert.ok(Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
 });
 
@@ -65,18 +71,44 @@ test('maskDeep masks nested values, keeps ids, hashes and trace ids, does not mu
   assert.doesNotThrow(() => maskDeep(deep));
 });
 
-test('a credential typed into a proposal reason, a comment or a retag value is masked everywhere the engine keeps or shows it', () => {
-  const e = newEngine(); e.trace = { traceId: 'a'.repeat(32), span: () => 'b'.repeat(16) };
-  let n = 0;
-  for (const [name, v] of Object.entries(SECRETS)) {
-    n += 1;
-    const p = e.propose({ actor: C.castCustodian, agentId: 'ag-bedrock-01', kind: 'retag', params: { key: 'cost-center', value: `${n} ${v}` }, reason: `because ${v} works` });
-    e.decide({ actor: C.castAdmin, proposalId: p.proposalId, decision: 'approve', comment: `ok ${v}` });
-    e.execute({ actor: C.castAdmin, proposalId: p.proposalId });
-    const all = JSON.stringify([e.snapshot(), e.hops, e.s.audit, [...e.s.agents.values()]]);
-    const needle = name === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : name === 'bearer' ? 'tokenvalue' : name === 'assignment' ? 'hunter2hunter2' : v;
-    assert.ok(!all.includes(needle), `${name} is nowhere in the state, the hops or the audit log`);
+
+const ZW = String.fromCharCode(0x200b);
+test('zero-width characters interleaved, fullwidth forms and a secret placed after 19,990 filler characters are all still masked (invisible characters are deleted and the text is folded BEFORE matching, and masking comes before truncation)', () => {
+  const v = SECRETS.github;
+  const woven = v.split('').join(ZW);
+  assert.ok(!cleanFree(`use ${woven} now`).includes(v.slice(0, 12)));
+  assert.ok(!cleanValue(`use ${woven} now`).includes(v.slice(0, 12)));
+  const full = [...v].map((c) => (c.charCodeAt(0) < 127 && c !== ' ' ? String.fromCharCode(c.charCodeAt(0) + 0xfee0) : c)).join('');
+  assert.ok(!cleanFree(`use ${full} now`).includes(v.slice(0, 10)), 'fullwidth forms are folded');
+  for (const fn of [cleanFree, cleanValue]) {
+    const out = fn(`${'a '.repeat(9995)}${v}`, 40000);
+    assert.ok(!out.includes(v.slice(0, 12)), 'a secret straddling the old 20,000 character cut is masked');
+    assert.ok(!fn(`${'b '.repeat(14000)}${SECRETS.pem}`, 40000).includes('MIIEvQ'));
   }
-  assert.ok(n > 10);
-  assert.match(e.snapshot().proposals.at(-1).reason, /\[masked:/);
+});
+
+test('cleanValue keeps a SPIFFE ID and a Kubernetes subject, masks every shape in SECRETS, and masks a 24-character blob', () => {
+  assert.equal(cleanValue('spiffe://trust.example/ns/payments/sa/agent-runner'), 'spiffe://trust.example/ns/payments/sa/agent-runner');
+  assert.equal(cleanValue('system:serviceaccount:payments:agent-runner'), 'system:serviceaccount:payments:agent-runner');
+  for (const [name, v] of Object.entries(SECRETS)) {
+    const out = cleanValue(`please use ${v} for this`);
+    const probe = name === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : name === 'bearer' ? 'tokenvalue' : name === 'assignment' ? 'hunter2hunter2' : name === 'plain' ? 'hunter2hunter2' : name === 'pw' ? 'correcthorse' : name === 'userinfo' ? 's3cr3tpassw0rd' : name === 'authz' ? 'abcdef123456' : v;
+    assert.ok(!out.includes(probe), name);
+  }
+});
+
+test('a credential typed into a name, description, claim, extra claim, key name or sensor name is masked everywhere the engine keeps or shows it', () => {
+  const probeOf = (name, v) => (name === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : name === 'bearer' ? 'tokenvalue' : name === 'assignment' || name === 'plain' ? 'hunter2hunter2' : name === 'pw' ? 'correcthorse' : name === 'userinfo' ? 's3cr3tpassw0rd' : name === 'authz' ? 'abcdef123456' : v);
+  for (const [name, v] of Object.entries(SECRETS)) {
+    const e = newEngine(); e.trace = { traceId: 'a'.repeat(32), span: () => 'b'.repeat(16) };
+    const id = e.createIdentity({ name: `n ${v}`, description: `d ${v}`, scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: 'https://kube-api.cluster-a.example/openid/v1/jwks', subject: 'a:b', audience: GW } }).identityId;
+    e.updateIdentity({ identityId: id, name: `renamed ${v}` });
+    const m = e.mint({ issuer: 'kube', claims: { iss: v, sub: v, aud: [v, v], extra: { [`c`]: v, token: v } }, kid: undefined });
+    const out = e.verify({ token: m.mintedToken, identityId: id, service: 'mcp' });
+    e.createKey({ name: `k ${v}`, owner: { kind: 'identity', ref: id }, scopes: ['mcp'] });
+    e.enrollSensor({ name: `s ${v}` });
+    const all = JSON.stringify([m.header, m.claims, out, e.snapshot(), e.hops]);
+    assert.ok(!all.includes(probeOf(name, v)), `${name} is nowhere in the answers, the state or the hops`);
+    assert.ok(!Buffer.from(m.mintedToken.split('.')[1], 'base64url').toString().includes(probeOf(name, v)), `${name} is not inside the minted token either`);
+  }
 });

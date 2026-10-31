@@ -1,0 +1,106 @@
+// A credential the visitor types must come back in NO response field, hop pane, audit entry, log line or error: tested by typing every credential shape into every
+// field, query, path, header and unknown key of every endpoint, and searching every answer, the state afterwards and the process output for it.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { C, GW, K8S_SUB, get, post, put, withServer } from './helpers.js';
+import { SECRETS } from './masking.test.js';
+
+const probeOf = (k, v) => (k === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : k === 'bearer' ? 'tokenvalue' : k === 'assignment' || k === 'plain' ? 'hunter2hunter2' : k === 'pw' ? 'correcthorse' : k === 'userinfo' ? 's3cr3tpassw0rd' : k === 'authz' ? 'abcdef123456' : v);
+const NEEDLES = Object.fromEntries(Object.entries(SECRETS).map(([k, v]) => [k, { raw: v, probe: probeOf(k, v) }]));
+const live = (extra = {}) => ({ mode: 'live', vertical: 'finance', ...extra });
+const e = encodeURIComponent;
+const URI = 'https://kube-api.cluster-a.example/openid/v1/jwks';
+
+test('typing every credential shape into every field of every endpoint never echoes it', async () => {
+  const out = []; const realOut = process.stdout.write.bind(process.stdout); const realErr = process.stderr.write.bind(process.stderr);
+  await withServer(async (url) => {
+    await post(url, '/api/sensors', live({ sensor: { name: 'real' } }));
+    const sweep = async (v) => {
+      const fed = (x) => ({ issuer: x, subject: x, audience: x, jwksUri: x, jwks: [{ kty: x, kid: x, n: x, e: x, d: x }], pinFromIssuer: x, maxTokenLifetimeSec: x, requiredClaims: { [x]: x, a: x }, allowAnySubject: x, [x]: x });
+      const ident = (x) => ({ name: x, description: x, platform: x, scopes: [x], notAfter: x, enabled: x, federation: fed(x), [x]: x });
+      const bodies = [
+        ['POST', '/api/tokens/mint', live({ mint: { issuer: v, alg: v, generation: v, kid: v, claims: { iss: v, sub: v, aud: v, extra: { [v]: v, a: v } }, times: { iat: v, exp: v, nbf: v }, [v]: v } })],
+        ['POST', '/api/tokens/mint', live({ mint: { issuer: 'kube', kid: v } })],
+        ['POST', '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { iss: v, sub: v, aud: [v, v], extra: { token: v, note: `x ${v}` } } } })],
+        ['POST', '/api/tokens/mint', live({ mint: { issuer: 'attacker', alg: 'HS256', claims: { sub: v, aud: v } } })],
+        ['POST', '/api/verify', live({ verify: { token: v, identityId: v, service: v, keyId: v, [v]: v } })],
+        ['POST', '/api/verify', live({ verify: { token: v, identityId: 'fid-001', service: 'mcp' } })],
+        ['POST', '/api/verify', live({ verify: { token: v, service: 'mcp' } })],
+        ['POST', '/api/verify', live({ verify: { token: [v, v, v].join(" "), service: 'mcp' } })],
+        ['POST', '/api/clock', live({ clock: { minutes: v, [v]: v } })],
+        ['POST', `/api/issuers/${e(v)}/actions`, live({ action: { action: v, retireOld: v, [v]: v } })],
+        ['POST', '/api/issuers/kube/actions', live({ action: { action: v, retireOld: v } })],
+        ['POST', '/api/identities', live({ identity: ident(v) })],
+        ['POST', '/api/identities', live({ identity: { name: `n ${v}`, description: `d ${v}`, scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW } } })],
+        ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: v, audience: GW } } })],
+        ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: v } } })],
+        ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW, requiredClaims: { repo: v } } } })],
+        ['PUT', `/api/identities/${e(v)}`, live({ identity: ident(v) })],
+        ['PUT', '/api/identities/fid-001', live({ identity: ident(v) })],
+        ['PUT', '/api/identities/fid-001', live({ identity: { name: `r ${v}`, federation: { subject: v } } })],
+        ['POST', `/api/identities/${e(v)}/remove`, live({ remove: { [v]: v } })],
+        ['POST', `/api/identities/${e(v)}/refresh`, live({ refresh: { [v]: v } })],
+        ['POST', '/api/keys', live({ key: { name: v, owner: { kind: v, ref: v, [v]: v }, scopes: [v], ownFederation: v, userRef: v, [v]: v } })],
+        ['POST', '/api/keys', live({ key: { name: `k ${v}`, owner: { kind: 'identity', ref: 'fid-001' }, scopes: ['mcp'] } })],
+        ['PUT', `/api/keys/${e(v)}`, live({ key: { enabled: v, scopes: [v], [v]: v } })],
+        ['POST', `/api/keys/${e(v)}/remove`, live({ remove: {} })],
+        ['POST', `/api/keys/${e(v)}/stored-call`, live({ call: { service: v, [v]: v } })],
+        ['PUT', `/api/people/${e(v)}`, live({ person: { active: v, [v]: v } })],
+        ['POST', '/api/sensors', live({ sensor: { name: v, [v]: v } })],
+        ['POST', '/api/sensors', live({ sensor: { name: `s ${v}` } })],
+        ['POST', `/api/sensors/${e(v)}/reports`, live({ report: { node: v, tokenFrom: v, token: v, body: { node: v, findings: [{ kind: v, name: v, namespace: v, pod: v, [v]: v }], [v]: v }, [v]: v } })],
+        ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, body: { node: v, findings: [{ kind: 'ai-agent', name: `n ${v}`, namespace: C.castNs, pod: 'p-0' }] } } })],
+        ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, token: v, body: { findings: [{ kind: 'ai-agent', name: 'n', namespace: C.castNs, pod: 'p-0' }] } } })],
+        ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, body: { findings: [{ kind: 'ai-agent', name: 'n', namespace: v, pod: v }] } } })],
+        ['PUT', `/api/sensors/${e(v)}/policy`, live({ policy: { mode: v, scope: { all: v, namespaces: [v], [v]: v }, actions: { [v]: v, 'ai-agent': v }, [v]: v } })],
+        ['PUT', '/api/sensors/fid-006/policy', live({ policy: { mode: 'audit', scope: { namespaces: [v] }, actions: { 'ai-agent': 'allow', 'mcp-server': 'allow', 'model-server': 'allow' } } })],
+        ['POST', '/api/reset', { [v]: v }],
+      ];
+      const gets = [`/api/state?mode=${e(v)}`, `/api/state?mode=live&vertical=${e(v)}&scenario=${e(v)}`, `/api/state?mode=mock&scenario=${e(v)}`, `/api/story?vertical=${e(v)}`, `/api/diagram?name=${e(v)}&vertical=${e(v)}`, `/api/${e(v)}`, `/api/health?x=${e(v)}`, `/${e(v)}`];
+      const texts = [];
+      for (const [m, p, b] of bodies) { const r = await (m === 'PUT' ? put : post)(url, p, b); texts.push(`${m} #${texts.length} ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
+      for (const g of gets) { const r = await get(url, g); texts.push(`GET ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
+      for (const hv of [v, `a ${v}`]) { const r = await get(url, '/api/state?mode=live', { 'x-workspace': hv.slice(0, 40).replace(/[^\x20-\x7e]/g, '?') }); texts.push(`H ${r.status} ${await r.text()}`); }
+      { const r = await post(url, '/api/clock', live({ clock: { minutes: 1 } }), { traceparent: v.replace(/[^\x20-\x7e]/g, '?') }); texts.push(`T ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
+      return texts.join('\n');
+    };
+    process.stdout.write = (c, ...a) => { out.push(String(c)); return realOut(c, ...a); }; process.stderr.write = (c, ...a) => { out.push(String(c)); return realErr(c, ...a); };
+    try {
+      for (const [name, n] of Object.entries(NEEDLES)) {
+        const text = await sweep(n.raw);
+        assert.ok(!text.includes(n.probe), `${name}: the raw value is absent from every answer: ${text.split('\n').filter((l) => l.includes(n.probe)).map((l) => l.slice(0, 200)).join(' | ')}`);
+        const state = JSON.stringify(await (await get(url, '/api/state?mode=live')).json());
+        assert.ok(!state.includes(n.probe), `${name}: absent from the state afterwards`);
+      }
+    } finally { process.stdout.write = realOut; process.stderr.write = realErr; }
+  });
+  for (const n of Object.values(NEEDLES)) assert.ok(!out.join('').includes(n.probe), 'nothing was logged');
+});
+
+test('a credential in a real, accepted action is masked in the response, the hops, the audit trail and the state', async () => {
+  await withServer(async (url) => {
+    for (const [name, n] of Object.entries(NEEDLES)) {
+      const W = { 'x-workspace': `echo-${name.toLowerCase()}`.slice(0, 30).replace(/[^a-z0-9-]/g, '-') };
+      const m = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: `x ${n.raw}`, note: n.raw } } } }), W);
+      const mb = await m.json(); assert.equal(m.status, 200);
+      assert.ok(!JSON.stringify({ ...mb.result, mintedToken: undefined, hops: mb.hops, state: mb.state }).includes(n.probe), `${name}: not in the mint answer`);
+      assert.ok(!Buffer.from(mb.result.mintedToken.split('.')[1], 'base64url').toString().includes(n.probe), `${name}: not inside the minted token`);
+      const v = await post(url, '/api/verify', live({ verify: { token: mb.result.mintedToken, identityId: 'fid-001', service: 'mcp' } }), W); const t = await v.text();
+      assert.equal(v.status, 200); assert.ok(!t.includes(n.probe), `${name}: not in the verify answer`); assert.ok(t.includes('"audit"') && t.includes('"hops"'));
+      const ident = await post(url, '/api/identities', live({ identity: { name: `n ${n.raw}`, description: n.raw, scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW } } }), W);
+      assert.ok(!(await ident.text()).includes(n.probe), `${name}: not in an identity answer`);
+    }
+  });
+});
+
+test('field names are not echoed either: an unknown key that is itself a credential never comes back', async () => {
+  await withServer(async (url) => {
+    for (const n of Object.values(NEEDLES)) {
+      for (const [m, p, b] of [['POST', '/api/tokens/mint', { mint: { issuer: 'kube', [n.raw]: 1 } }], ['POST', '/api/verify', { verify: { token: 'a.b.c', service: 'mcp', [n.raw]: 1 } }], ['POST', '/api/clock', { clock: { minutes: 1, [n.raw]: 1 } }], ['POST', '/api/identities', { identity: { name: 'x', [n.raw]: 1 } }], ['PUT', '/api/sensors/fid-006/policy', { policy: { [n.raw]: 1 } }]]) {
+        const r = await (m === 'PUT' ? put : post)(url, p, live(b)); const t = await r.text();
+        assert.ok([400, 404].includes(r.status), p); assert.ok(!t.includes(n.probe));
+      }
+      const r = await post(url, '/api/clock', live({ clock: { minutes: 1 }, [n.raw]: 1 })); assert.ok(!(await r.text()).includes(n.probe));
+    }
+  });
+});
