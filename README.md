@@ -92,7 +92,7 @@ The header has a **Mock / Live** toggle on every page, and the banner and the mo
 ## Health, doctor and reset
 
 ```
-npm run doctor   # 17 checks, including a real mint, verify, tamper and revoke cycle through the HTTP API; PORT=7409 npm run doctor to use a spare port
+npm run doctor   # 18 checks, including a real mint, verify, tamper and revoke cycle through the HTTP API; PORT=7409 npm run doctor to use a spare port
 npm run reset    # clears the default workspace (identities, keys, issuers, audit, sensors, findings, the lab clock); the UI Reset also restores the diagram
 ```
 
