@@ -2,7 +2,7 @@
   "schema": "diagram-studio/1",
   "id": "federated-identity-flow",
   "title": "Federated Identity: one platform-issued credential, three services",
-  "lede": "The platform issues the workload a short-lived token. The gateway checks it against the issuer's key set and the identity's exact binding, then calls the backend with the application's own credential: the token stops at the gateway. Ping release claim, UNVERIFIED on our tenant. Simulated.",
+  "lede": "The platform issues the workload a short-lived token. The gateway checks it against the issuer's key set and the identity's exact binding, then calls the backend with the application's own credential. The token stops at the gateway. Ping release claim, UNVERIFIED on our tenant. Simulated.",
   "groups": {
     "src": {
       "label": "Workloads and issuers",

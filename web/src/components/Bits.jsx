@@ -85,7 +85,7 @@ export function Verdict({ r }) {
   if (!r) return null;
   return (
     <p className={r.ok ? "verdict verdict--ok" : "verdict verdict--bad"} role="status" data-testid="verdict" data-state={r.ok ? "ok" : "bad"}>
-      <strong>{r.ok ? "ALLOWED" : "REFUSED"}</strong> <code data-testid="verdict-code">{r.code}</code>: {visible(r.detail || "")} The caller would see only <strong>{r.callerSees || r.status}</strong>; the lab names the reason so you can learn from it.
+      <strong>{r.ok ? "ALLOWED" : "REFUSED"}</strong> <code data-testid="verdict-code">{r.code}</code>: {visible(r.detail || "")}. The caller would see only <strong>{r.callerSees || r.status}</strong>; the lab names the reason so you can learn from it.
     </p>
   );
 }

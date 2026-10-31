@@ -26,8 +26,8 @@
       "id": "ctl",
       "label": "Controller verifies every report",
       "group": "ping",
-      "x": 1000,
-      "y": 300
+      "x": 650,
+      "y": 250
     },
     {
       "id": "pod",
@@ -41,28 +41,28 @@
       "label": "Kubernetes issuer",
       "group": "people",
       "x": 0,
-      "y": 300
+      "y": 500
     },
     {
       "id": "pol",
       "label": "Policy: mode, namespaces, actions",
       "group": "ping",
-      "x": 1000,
-      "y": 600
+      "x": 1300,
+      "y": 0
     },
     {
       "id": "find",
       "label": "Findings attributed to the node in the token",
       "group": "rec",
-      "x": 500,
-      "y": 600
+      "x": 1300,
+      "y": 500
     },
     {
       "id": "act",
       "label": "Decision: allow, monitor, warn or deny",
       "group": "rec",
-      "x": 500,
-      "y": 300
+      "x": 1300,
+      "y": 250
     }
   ],
   "edges": [
