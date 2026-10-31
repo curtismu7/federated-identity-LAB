@@ -41,6 +41,7 @@ export default function App() {
   const [resetSignal, setResetSignal] = useState(0);
   const [resetMsg, setResetMsg] = useState("");
   const [pending, setPending] = useState(null);
+  const [verifyUi, setVerifyUi] = useState(null);
   const tabsRef = useRef(null);
   const lab = useLab({ mode, vertical, scenario: scenarioId });
 
@@ -50,6 +51,7 @@ export default function App() {
     getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [vertical]);
+  useEffect(() => { setVerifyUi(null); }, [vertical]); // presets carry the cast, so a new vertical gives a new editor
   useEffect(() => {
     const on = () => setTab(tabFromHash());
     window.addEventListener("hashchange", on);
@@ -145,7 +147,7 @@ export default function App() {
               {!lab.state && tab !== "diagram" && tab !== "talk" ? <p className="muted">Loading...</p> : (
                 <>
                   {tab === "identities" && <IdentitiesTab {...props} />}
-                  {tab === "verify" && <VerifyTab {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} />}
+                  {tab === "verify" && <VerifyTab {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} ui={verifyUi} setUi={setVerifyUi} />}
                   {tab === "issuers" && <IssuersTab {...props} />}
                   {tab === "models" && <ModelsTab {...props} tryPreset={tryPreset} />}
                   {tab === "sensors" && <SensorsTab {...props} />}

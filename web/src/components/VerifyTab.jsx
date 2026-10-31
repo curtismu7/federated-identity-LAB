@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { visible } from "../safeText";
 import { decodeToken, labTime, tamper } from "../token";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
@@ -57,19 +57,19 @@ function Scenarios({ lab, scenarioId, setScenarioId }) {
   );
 }
 
-export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pending }) {
+export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pending, ui, setUi }) {
   const ro = lab.readOnly; const s = lab.state;
-  const [presetId, setPresetId] = useState("k8s-right");
-  const [f, setF] = useState(() => fieldsFromPreset(story.presets[0].mint));
-  const [identityId, setIdentityId] = useState("fid-001");
-  const [service, setService] = useState("mcp");
-  const [token, setToken] = useState("");
-  const [result, setResult] = useState(null);
-  const [minted, setMinted] = useState(null);
+  // The editor's state lives in App, so it survives a visit to another tab.
+  useEffect(() => { if (!ui) setUi({ presetId: "k8s-right", f: fieldsFromPreset(story.presets[0].mint), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null }); }, [ui]); // eslint-disable-line react-hooks/exhaustive-deps
   const seq = useRef(0);
+  const cur = ui || { presetId: "k8s-right", f: blank(), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null };
+  const { presetId, f, identityId, service, token, result, minted } = cur;
+  const patch = (o) => setUi((x) => ({ ...(x || cur), ...o }));
+  const setF = (fn) => setUi((x) => { const b = x || cur; return { ...b, f: typeof fn === "function" ? fn(b.f) : fn }; });
+  const setIdentityId = (v) => patch({ identityId: v }); const setService = (v) => patch({ service: v }); const setToken = (v) => patch({ token: v });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
-  const load = (id) => { const p = story.presets.find((x) => x.id === id); if (!p) return; setPresetId(id); setF(fieldsFromPreset(p.mint)); setIdentityId(p.identityId); setService(p.service); setToken(""); setResult(null); setMinted(null); };
-  useEffect(() => { if (pending?.id) load(pending.id); }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
+  const load = (id) => { const p = story.presets.find((x) => x.id === id); if (!p) return; patch({ presetId: id, f: fieldsFromPreset(p.mint), identityId: p.identityId, service: p.service, token: "", result: null, minted: null }); };
+  useEffect(() => { if (pending?.id && ui) load(pending.id); }, [pending, !!ui]); // eslint-disable-line react-hooks/exhaustive-deps
   const decoded = useMemo(() => decodeToken(token), [token]);
   const identities = s?.identities || [];
   const now = s?.clock.now;
@@ -78,14 +78,14 @@ export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pendi
     const mine = ++seq.current;
     const r = await lab.act("POST", "/api/tokens/mint", { mint: mintFromFields(f) });
     if (mine !== seq.current) return;
-    if (r.body?.ok) { setToken(r.body.result.mintedToken); setMinted({ label: r.body.result.label, notes: r.body.result.notes }); setResult(null); } else setMinted({ error: r.body?.error, detail: r.body?.detail });
+    if (r.body?.ok) patch({ token: r.body.result.mintedToken, minted: { label: r.body.result.label, notes: r.body.result.notes }, result: null }); else patch({ minted: { error: r.body?.error, detail: r.body?.detail } });
   };
   const verify = async () => {
     const mine = ++seq.current;
     const r = await lab.act("POST", "/api/verify", { verify: { token, service, ...(identityId ? { identityId } : {}) } });
     if (mine !== seq.current) return;
     const b = r.body || {};
-    setResult(b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null });
+    patch({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
   };
 
   return (
