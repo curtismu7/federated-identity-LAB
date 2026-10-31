@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { visible } from "../safeText";
 import { decodeToken, labTime, tamper } from "../token";
+import { compareResults, verifyInBrowser } from "../browserVerify";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
 
 const ISSUER_CHOICES = [["kube", "Kubernetes API server"], ["github", "GitHub Actions"], ["gitlab", "GitLab CI"], ["spire", "SPIFFE/SPIRE server"], ["private", "Private issuer"], ["attacker", "Attacker (no registered issuer)"]];
@@ -57,18 +58,19 @@ function Scenarios({ lab, scenarioId, setScenarioId }) {
   );
 }
 
-export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pending, ui, setUi }) {
+export default function VerifyTab({ story, lab, vertical, scenarioId, setScenarioId, pending, ui, setUi }) {
   const ro = lab.readOnly; const s = lab.state;
   // The editor's state lives in App, so it survives a visit to another tab.
-  useEffect(() => { if (!ui) setUi({ presetId: "k8s-right", f: fieldsFromPreset(story.presets[0].mint), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null }); }, [ui]); // eslint-disable-line react-hooks/exhaustive-deps
-  const seq = useRef(0);
-  const cur = ui || { presetId: "k8s-right", f: blank(), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null };
+  useEffect(() => { if (!ui) setUi({ presetId: "k8s-right", f: fieldsFromPreset(story.presets[0].mint), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null }); }, [ui]); // eslint-disable-line react-hooks/exhaustive-deps
+  const seq = useRef(0); const bseq = useRef(0);
+  const cur = ui || { presetId: "k8s-right", f: blank(), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null };
   const { presetId, f, identityId, service, token, result, minted } = cur;
+  const browser = cur.browser && cur.browser.forToken === token ? cur.browser : null; // a result for text that has since been edited is not shown
   const patch = (o) => setUi((x) => ({ ...(x || cur), ...o }));
   const setF = (fn) => setUi((x) => { const b = x || cur; return { ...b, f: typeof fn === "function" ? fn(b.f) : fn }; });
-  const setIdentityId = (v) => patch({ identityId: v }); const setService = (v) => patch({ service: v }); const setToken = (v) => patch({ token: v });
+  const setIdentityId = (v) => patch({ identityId: v }); const setService = (v) => patch({ service: v }); const setToken = (v) => patch({ token: v, browser: null });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
-  const load = (id) => { const p = story.presets.find((x) => x.id === id); if (!p) return; patch({ presetId: id, f: fieldsFromPreset(p.mint), identityId: p.identityId, service: p.service, token: "", result: null, minted: null }); };
+  const load = (id) => { const p = story.presets.find((x) => x.id === id); if (!p) return; patch({ presetId: id, f: fieldsFromPreset(p.mint), identityId: p.identityId, service: p.service, token: "", result: null, minted: null, browser: null }); };
   useEffect(() => { if (pending?.id && ui) load(pending.id); }, [pending, !!ui]); // eslint-disable-line react-hooks/exhaustive-deps
   const decoded = useMemo(() => decodeToken(token), [token]);
   const identities = s?.identities || [];
@@ -78,21 +80,38 @@ export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pendi
     const mine = ++seq.current;
     const r = await lab.act("POST", "/api/tokens/mint", { mint: mintFromFields(f) });
     if (mine !== seq.current) return;
-    if (r.body?.ok) patch({ token: r.body.result.mintedToken, minted: { label: r.body.result.label, notes: r.body.result.notes }, result: null }); else patch({ minted: { error: r.body?.error, detail: r.body?.detail } });
+    if (r.body?.ok) patch({ token: r.body.result.mintedToken, minted: { label: r.body.result.label, notes: r.body.result.notes }, result: null, browser: null }); else patch({ minted: { error: r.body?.error, detail: r.body?.detail } });
+  };
+  // The browser's own signature check on this token text. A newer run (or a newer edit) makes an older answer stale.
+  const checkInBrowser = async (tok) => {
+    const mine = ++bseq.current;
+    patch({ browserBusy: true, browser: null });
+    const b = await verifyInBrowser(tok, { issuers: story.issuers, vertical });
+    if (mine !== bseq.current) return;
+    patch({ browser: { ...b, forToken: tok }, browserBusy: false });
   };
   const verify = async () => {
     const mine = ++seq.current;
-    patch({ result: null }); // the previous verdict is cleared, so a stale answer is never mistaken for the new one
+    patch({ result: null, browser: null }); // the previous verdict (and browser answer) is cleared, so a stale answer is never mistaken for the new one
     const r = await lab.act("POST", "/api/verify", { verify: { token, service, ...(identityId ? { identityId } : {}) } });
     if (mine !== seq.current) return;
     const b = r.body || {};
     patch({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
+    checkInBrowser(token);
   };
 
   return (
     <div className="stack">
       {ro && <p className="muted" data-testid="read-only-note">Mock only reads tables: switch to Live to mint and verify your own tokens (real RS256 on the lab's own keys).</p>}
       {ro && <Scenarios lab={lab} scenarioId={scenarioId} setScenarioId={setScenarioId} />}
+      {ro && (
+        <section className="panel" data-testid="browser-live-only">
+          <h2 className="panel__title">Verified in this browser (WebCrypto RS256) <SourceTag source="invented" label="lab-invented UI" /></h2>
+          <p className="muted" data-testid="browser-live-only-reason">Live only. The Mock tables hold decoded claims and step results, never a token or a key, so there is nothing for the browser to check. Switch to Live to mint a token and check its signature in your own browser.</p>
+          <p><button type="button" disabled data-testid="browser-check-mock">Check the signature in this browser</button></p>
+        </section>
+      )}
+
       {!ro && s && (
         <>
           <section className="panel" data-testid="editor">
@@ -144,6 +163,19 @@ export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pendi
                   <p className="muted" data-testid="decoded-times">{["iat", "nbf", "exp"].filter((k) => typeof decoded.payload[k] === "number").map((k) => `${k} ${labTime(decoded.payload[k])}`).join("; ")}{typeof decoded.payload.exp === "number" && typeof decoded.payload.iat === "number" ? `; lifetime (exp minus iat) ${decoded.payload.exp - decoded.payload.iat} s` : ""}</p></div>
               </div>
             )}
+          </section>
+
+          <section className="panel" aria-label="Server and browser side by side" data-testid="compare">
+            <h2 className="panel__title">Two checks of the signature <SourceTag source="invented" label="lab-invented UI" /></h2>
+            <p className="muted">The server runs all fifteen steps. The browser re-checks <strong>only the signature</strong>, with WebCrypto, against the issuer's public key set fetched from this lab's own server (nothing else is contacted, and no private key ever reaches the page). The browser result is <strong>not the full verdict</strong>: claims, audience, lifetime, subject, pinned claims, the key and the scope are the server's steps.</p>
+            <div className="cols">
+              <div data-testid="server-side"><h3 className="panel__sub">Server verdict (fifteen steps)</h3>
+                {result ? <p data-testid="server-summary"><StatusTag status={result.ok ? "allowed" : "refused"} /> <code>{result.code}</code>{result.steps && <> signature step: <strong>{result.steps.find((x) => x.id === "signature")?.status === "skip" ? "not reached" : result.steps.find((x) => x.id === "signature")?.status}</strong></>}</p> : <p className="muted">Not run yet.</p>}</div>
+              <div data-testid="browser-side"><h3 className="panel__sub">Verified in this browser (WebCrypto RS256)</h3>
+                {browser ? <p data-testid="browser-summary"><StatusTag status={browser.status === "ok" ? "ok" : browser.status === "bad" ? "failed" : browser.status} /> <strong data-testid="browser-status">{browser.status}</strong>: {visible(browser.reason)}</p> : <p className="muted" data-testid="browser-idle">{cur.browserBusy ? "Checking..." : "Not run yet."}</p>}
+                <p><button type="button" disabled={!token || cur.browserBusy} onClick={() => checkInBrowser(token)} data-testid="browser-check">Check the signature in this browser</button></p></div>
+            </div>
+            {(() => { const c = compareResults(result, browser); return c.kind === "none" ? null : <p className="verdict" data-state={c.kind === "disagree" ? "bad" : "ok"} role="status" data-testid={c.kind === "disagree" ? "disagreement" : "agreement"}><strong>{c.kind === "disagree" ? "DISAGREEMENT" : c.kind === "agree" ? "Agree" : "Not comparable"}.</strong> {c.text}</p>; })()}
           </section>
 
           {result && (

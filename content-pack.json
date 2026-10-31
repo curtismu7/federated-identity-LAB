@@ -90,6 +90,14 @@
       "aliases": []
     },
     {
+      "id": "browser-check",
+      "term": "In-browser signature check",
+      "definition": "After the server's fifteen steps the page re-checks only the signature with WebCrypto (RS256) against the issuer's public key set fetched from the lab's own server, and flags any disagreement (for example a retired key the gateway still caches). It is lab-invented UI, never the full verdict, and Live only. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "WebCrypto"
+      ]
+    },
+    {
       "id": "attribution",
       "term": "Per-deployment attribution and revocation",
       "definition": "Every request is attributed to a specific deployment (the lab names it from namespace and service account and pod, or repository and ref and run: a lab reading) and revoking the identity (Enabled false, the console swagger's only kill switch) cuts the workload off at once. We did not measure revocation speed on our tenant. Ping release claim, UNVERIFIED on our tenant.",
@@ -348,6 +356,20 @@
       },
       "terms": [
         "enforced-lifetimes"
+      ]
+    },
+    {
+      "id": "try-browser-check",
+      "label": "Check a signature in your own browser",
+      "description": "Mint a token, verify it, and read the browser's WebCrypto signature check beside the server verdict; tamper it and both fail; rotate the issuer and keep an old token to see a disagreement.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "browser-check",
+        "key-set"
       ]
     },
     {

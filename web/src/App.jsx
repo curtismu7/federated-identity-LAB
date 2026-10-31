@@ -8,6 +8,7 @@ import AuditTab from "./components/AuditTab";
 import DiagramTab from "./components/DiagramTab";
 import TalkTrack from "./components/TalkTrack";
 import LastAction from "./components/LastAction";
+import ErrorBoundary from "./components/ErrorBoundary";
 import useLab from "./hooks/useLab";
 import { getJson, resetWorkspace } from "./api";
 
@@ -97,6 +98,8 @@ export default function App() {
 
   const banner = story && mode ? story.banner[mode] : BANNER_UNKNOWN;
   const ready = story && mode;
+  // Every tab draws only when the story, the lab state and the chosen vertical and mode all agree: a late answer for the previous vertical never meets the new one.
+  const settled = !!(story && lab.state && story.vertical === vertical && lab.data?.vertical === vertical && lab.data?.mode === mode);
   const props = { story, mode, vertical, lab };
   return (
     <div className={`app${presenter ? " app--presenter" : ""}`}>
@@ -144,18 +147,18 @@ export default function App() {
                   {story.talkTrack.filter((t) => (story.presenterTalk[tab] || []).includes(t.id)).map((t) => <p key={t.id}><strong>{t.title}.</strong> {t.say}</p>)}
                 </aside>
               )}
-              {!lab.state && tab !== "diagram" && tab !== "talk" ? <p className="muted">Loading...</p> : (
-                <>
-                  {tab === "identities" && <IdentitiesTab {...props} />}
-                  {tab === "verify" && <VerifyTab {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} ui={verifyUi} setUi={setVerifyUi} />}
-                  {tab === "issuers" && <IssuersTab {...props} />}
-                  {tab === "models" && <ModelsTab {...props} tryPreset={tryPreset} />}
-                  {tab === "sensors" && <SensorsTab {...props} />}
-                  {tab === "audit" && <AuditTab {...props} />}
-                </>
+              {!settled && tab !== "diagram" && tab !== "talk" ? <p className="muted" data-testid="settling">Loading...</p> : (
+                <ErrorBoundary key={`${vertical}|${mode}|${tab}`}>
+                  {tab === "identities" && <IdentitiesTab key={`${vertical}|${mode}`} {...props} />}
+                  {tab === "verify" && <VerifyTab key={`${vertical}|${mode}`} {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} ui={verifyUi} setUi={setVerifyUi} />}
+                  {tab === "issuers" && <IssuersTab key={`${vertical}|${mode}`} {...props} />}
+                  {tab === "models" && <ModelsTab key={`${vertical}|${mode}`} {...props} tryPreset={tryPreset} />}
+                  {tab === "sensors" && <SensorsTab key={`${vertical}|${mode}`} {...props} />}
+                  {tab === "audit" && <AuditTab key={`${vertical}|${mode}`} {...props} />}
+                </ErrorBoundary>
               )}
-              {tab === "diagram" && <DiagramTab vertical={vertical} resetSignal={resetSignal} />}
-              {tab === "talk" && <TalkTrack story={story} />}
+              {tab === "diagram" && <ErrorBoundary key={`${vertical}|d`}><DiagramTab vertical={vertical} resetSignal={resetSignal} /></ErrorBoundary>}
+              {tab === "talk" && <ErrorBoundary key={`${vertical}|t`}><TalkTrack story={story} /></ErrorBoundary>}
               {mode === "live" && ["identities", "issuers", "audit", "models"].includes(tab) && <LastAction last={lab.last} />}
             </>
           )}

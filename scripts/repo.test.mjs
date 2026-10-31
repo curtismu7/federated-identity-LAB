@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-const WEB_FILES = ['App.jsx', 'components/IdentitiesTab.jsx', 'components/VerifyTab.jsx', 'components/IssuersTab.jsx', 'components/ModelsTab.jsx', 'components/SensorsTab.jsx', 'components/AuditTab.jsx', 'components/TalkTrack.jsx'];
+const WEB_FILES = ['App.jsx', 'components/IdentitiesTab.jsx', 'components/VerifyTab.jsx', 'components/IssuersTab.jsx', 'components/ModelsTab.jsx', 'components/SensorsTab.jsx', 'components/AuditTab.jsx', 'components/TalkTrack.jsx', 'components/ErrorBoundary.jsx', 'browserVerify.js'];
 
 test('the files the standalone rules ask for are present', () => {
   for (const f of ['README.md', 'CLAUDE.md', 'LICENSE', 'Dockerfile', 'docker-compose.yml', '.github/workflows/ci.yml', 'docs/talk-track.md', 'docs/safety.md', 'docs/content-pack.schema.json', 'scripts/build-mock-table.mjs', 'docs/shelf-entry.json', 'customer.config.example.json', 'content-pack.json', 'scripts/doctor.mjs', 'scripts/reset.mjs', 'web/src/styles/standalone-ui.css', '.gitignore', '.env.example']) assert.ok(fs.existsSync(path.join(root, f)), f);
@@ -78,6 +78,15 @@ test('README sections follow the standard order and state the limits, the measur
   assert.match(r, /### Known limits of the model/); assert.match(r, /lab-invented/i); assert.match(r, /run by hand/);
   assert.match(r, /did not prove it/); assert.match(r, /measured, our note, 2026-10-21/); assert.match(r, /Slide 57/); assert.match(r, /\/v1\/nonhumanidentities/); assert.match(r, /token-pass/); assert.match(r, /in development/); assert.match(r, /RS256 only/); assert.match(r, /UNVERIFIED on our tenant/);
   assert.match(r, /util\.parseEnv/);
+});
+
+test('the README and CLAUDE.md describe the in-browser WebCrypto check and its limits; the browser code reaches only the lab\'s own origin and no secret', () => {
+  const r = read('README.md');
+  for (const w of ['WebCrypto', 'RSASSA-PKCS1-v1_5', 'ONLY', 'not the full verdict', 'Live only', 'disagreement', 'no key', 'secure context', 'no private key ever reaches the page']) assert.ok(r.includes(w), w);
+  assert.match(read('CLAUDE.md'), /browserVerify\.js/);
+  const b = read('web/src/browserVerify.js');
+  assert.ok(!/https?:\/\//.test(b.replace(/\/\/.*$/gm, '')), 'no absolute URL: same origin only');
+  assert.ok(!/privateKey|PRIVATE|"d"|\.d\b/.test(b.replace(/\/\/.*$/gm, '')), 'the page never handles private key material');
 });
 
 test('app CSS follows the CSS standard: tokens only, no dark-mode media query, no forced priority, no italics, breakpoints 600 and 900 only, no purple', () => {

@@ -28,6 +28,10 @@ On Issuers and keys, rotate the Kubernetes issuer. The gateway still holds the o
 
 On the Federated Identity tab a key can name an identity as its owner instead of borrowing maya.chen. Make maya.chen inactive: the stored key that borrowed them stops working, while the keys owned by identities carry on, and the audit names the identity as the principal. The console refuses a key that has its own workload identity and an identity owner, or that names a person too (measured, our note).
 
+## Check the signature in your own browser
+
+After the server's fifteen steps, the page re-checks only the signature in your browser with WebCrypto (RS256), against the issuer's public key set fetched from this lab's own server: nothing else is contacted and no private key ever reaches the page. Tamper a token and both fail. Rotate the issuer and keep an old token. The gateway still verifies from the key set it holds, the browser finds no key in the set the issuer publishes now, and the page flags the disagreement. Take the issuer down: the gateway carries on from its last known good set, the browser has no such cache. The browser result is the signature only, never the full verdict: claims, audience, lifetime and scope are the server's steps. Live only: the Mock tables hold no keys.
+
 ## Backend isolation, revocation and attribution
 
 Open the last allowed call: the outbound request to the backend carries the application's own credential, masked, and the workload token is not in it. Revoke the identity and send the very next request: refused. The Audit tab names every request's deployment (namespace and service account and pod, or repository and ref and run), and every refusal.
