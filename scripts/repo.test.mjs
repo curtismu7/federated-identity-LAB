@@ -98,5 +98,5 @@ test('the shared stylesheet is vendored byte for byte when the canonical copy is
 });
 
 test('the repo carries no k8s manifests, no bare MODE, no credential field and no <em> in the web code; the web code never builds markup from text', () => {
-  for (const f of WEB_FILES) { const t = read(`web/src/${f}`); assert.ok(!/type="password"|process\.env\.MODE|<em>|dangerouslySetInnerHTML|innerHTML/.test(t.replace('<em>claimed</em>', '')), f); }
+  for (const f of WEB_FILES) { const t = read(`web/src/${f}`); assert.ok(!/type="password"|process\.env\.MODE|<em>|dangerouslySetInnerHTML|innerHTML/.test(t), f); }
 });
