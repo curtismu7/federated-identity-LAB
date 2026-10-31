@@ -1,0 +1,512 @@
+{
+  "schema": "demo-content-pack/1",
+  "id": "federated-identity-lab",
+  "title": "Federated Identity LAB",
+  "version": "0.1.0",
+  "demo": {
+    "id": "federated-identity-lab",
+    "name": "Federated Identity LAB",
+    "catalog": "D107",
+    "baseUrl": "http://localhost:7400",
+    "doctor": "/api/health",
+    "tags": [
+      "federated-identity",
+      "self-hosted-agents",
+      "workload-identity",
+      "jwt",
+      "jwks",
+      "revocation",
+      "kubernetes-sensor",
+      "simulated"
+    ]
+  },
+  "glossary": [
+    {
+      "id": "federated-identity",
+      "term": "Federated Identity",
+      "definition": "Platform-issued, short-lived identity for agents: the workload presents the token its own platform issues (a Kubernetes service-account token, a GitHub Actions or GitLab CI job token, a SPIFFE JWT-SVID, or any OIDC token with published keys) and nothing long-lived is stored in it. The new display name of Non-Human Identity (slide 35); the console API object is still NonHumanIdentity at /v1/nonhumanidentities (console swagger name, schema only). Slide 57 still says Non-Human Identity. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "Non-Human Identity",
+        "NHI",
+        "NonHumanIdentity"
+      ]
+    },
+    {
+      "id": "exact-binding",
+      "term": "Exact identity binding",
+      "definition": "Issuer and subject are matched exactly and the audience is mandatory, so a key bound to one ServiceAccount, or to one repository on main, cannot be used by anything else, including a pull request from a fork. The lab compares strings exactly (no case folding, no trailing-slash tolerance). Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "issuer",
+        "subject",
+        "audience"
+      ]
+    },
+    {
+      "id": "pinned-claims",
+      "term": "Pinned claims",
+      "definition": "Additional claims (repository, workflow, environment) can be pinned and must be present and match exactly. The claim names the lab uses are its own flat names (lab-invented); RequiredClaims is a console swagger name (schema only). Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "RequiredClaims"
+      ]
+    },
+    {
+      "id": "enforced-lifetimes",
+      "term": "Enforced lifetimes",
+      "definition": "Expiry is required and the lifetime is capped (default one hour), so a workload that signs its own tokens cannot choose its own validity window; only asymmetric algorithms are accepted (none and HS* are refused). The lab reads lifetime as exp minus iat (a lab reading of the swagger description of MaxTokenLifetimeSec) and verifies RS256 only (a lab limit). Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "lifetime cap",
+        "MaxTokenLifetimeSec"
+      ]
+    },
+    {
+      "id": "key-set",
+      "term": "Resilient key handling",
+      "definition": "The issuer's key set is validated when the identity is created, refreshed every fifteen minutes and on sight of an unknown signing key, and the last known good set is kept through issuer outages; private issuers use pinned key material. Time in the lab is a lab clock. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "JWKS",
+        "last known good"
+      ]
+    },
+    {
+      "id": "key-owned",
+      "term": "A key owned by an identity",
+      "definition": "An agent access key can name a Federated Identity as the principal it acts as, instead of borrowing a human owner (console swagger name CustodianRef, schema only). The refusals shown for a key that also carries its own workload identity or names a person are measured on our tenant (our note, 2026-10-21), not the deck's. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "CustodianRef"
+      ]
+    },
+    {
+      "id": "backend-isolation",
+      "term": "Backend isolation",
+      "definition": "The token stops at the gateway and is never forwarded; backends receive the application's own configured credential (static, per-user from the vault, or OAuth), shown masked because the lab holds none. The console swagger also lists a token-pass mode that forwards the assertion: shown, not resolved. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "token pass-through"
+      ]
+    },
+    {
+      "id": "deployment-models",
+      "term": "Five deployment models",
+      "definition": "Direct token read, per-job CI/CD tokens, SPIFFE/SPIRE, a stored agent key as the fallback, and sidecar injection, which is in development on the slide: the lab claims no behaviour for it. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": []
+    },
+    {
+      "id": "attribution",
+      "term": "Per-deployment attribution and revocation",
+      "definition": "Every request is attributed to a specific deployment (the lab names it from namespace and service account and pod, or repository and ref and run: a lab reading) and revoking the identity (Enabled false, the console swagger's only kill switch) cuts the workload off at once. We did not measure revocation speed on our tenant. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "revocation"
+      ]
+    },
+    {
+      "id": "self-hosted-agents",
+      "term": "Self-Hosted Agents",
+      "definition": "A platform component acting as its own non-human principal: an identity the platform issued, a short-lived token minted for a Privilege-generated audience and projected into the pod, verified on every report. The new name of NHI Agents Discovery & Enforcement. The first one is the Kubernetes eBPF sensor; the lab runs no eBPF and simulates the reports. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "NHI Agents Discovery & Enforcement",
+        "Kubernetes sensor"
+      ]
+    },
+    {
+      "id": "node-from-claims",
+      "term": "Verified, not vouched",
+      "definition": "The controller verifies issuer, subject, audience and scope on every report and takes the reporting node from the token's claims, not the sender's word, so a compromised agent cannot misattribute its findings. The claim is named node in the lab (lab-invented). Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": []
+    },
+    {
+      "id": "enforcement-policy",
+      "term": "Enforcement policy",
+      "definition": "A policy bound to a Federated Identity decides what that agent may do, scoped to named namespaces or the whole cluster, with modes off, audit and enforce and actions allow, monitor, warn and deny; audit mode records every decision that would have blocked without blocking. The console swagger names seven actions and a Disabled flag: shown, not resolved. Nothing is terminated in the lab. Ping release claim, UNVERIFIED on our tenant.",
+      "aliases": [
+        "audit mode"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "deck-slides",
+      "title": "Ping ID4AI Workforce H2 2026 deck, slides 35, 40, 41 and 44",
+      "url": "https://example.invalid/ping-id4ai-workforce-h2-2026-deck",
+      "kind": "deck",
+      "use": "The Federated Identity and Self-Hosted Agents release claims and the renaming.",
+      "status": "read",
+      "checked": "2026-10-31"
+    },
+    {
+      "id": "console-swagger",
+      "title": "Privilege console swagger, 2026-10-31 (schema only)",
+      "url": "https://example.invalid/privilege-console-swagger",
+      "kind": "schema",
+      "use": "Field names for NonHumanIdentity, AgentWorkloadIdentity, CustodianRef and the shadow-AI policy. It proves names exist, not behaviour.",
+      "status": "read",
+      "checked": "2026-10-31"
+    },
+    {
+      "id": "our-notes",
+      "title": "Our own earlier tests on the pre-release gateway (measured, our note)",
+      "url": "https://example.invalid/our-measured-notes",
+      "kind": "measurement",
+      "use": "Where our test of the MCP path did not prove workload-token acceptance, and the two key refusals.",
+      "status": "read",
+      "checked": "2026-10-31"
+    }
+  ],
+  "cards": [
+    {
+      "id": "try-one-credential",
+      "label": "Scenario 1: One credential, three services",
+      "description": "The Kubernetes identity for one ServiceAccount: a token the platform issued is allowed to the MCP server and to the peer agent, and refused for the LLM provider because the scope is not on the key.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "federated-identity",
+        "key-owned"
+      ],
+      "story": "S01"
+    },
+    {
+      "id": "try-exact-binding",
+      "label": "Scenario 2: Exact binding: subject, issuer, audience",
+      "description": "Another ServiceAccount, the same name in another namespace, a token from another issuer, no audience and the wrong audience are each refused at their own step.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "exact-binding"
+      ],
+      "story": "S02"
+    },
+    {
+      "id": "try-fork-pr",
+      "label": "Scenario 3: A key bound to main cannot be used by a pull request",
+      "description": "GitHub Actions: main of the right repository is allowed; a pull request, a pull request from a fork, the wrong environment and a missing pinned claim are refused.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "exact-binding",
+        "pinned-claims"
+      ],
+      "story": "S03"
+    },
+    {
+      "id": "try-lifetimes",
+      "label": "Scenario 4: Enforced lifetimes",
+      "description": "Expired, unexpired but minted to live two hours, no expiry, issued in the future and not valid yet are refused; a good token is allowed, and refused once the lab clock passes its expiry.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "enforced-lifetimes"
+      ],
+      "story": "S04"
+    },
+    {
+      "id": "try-algorithms",
+      "label": "Scenario 5: Algorithms and tampering",
+      "description": "alg none, HS256 signed with the public key, an ES256 header, an attacker's key (under the issuer's kid and under its own), no kid, and a payload altered after signing.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "enforced-lifetimes"
+      ],
+      "story": "S05"
+    },
+    {
+      "id": "try-keyset-refresh",
+      "label": "Scenario 6: An unknown signing key triggers a refresh",
+      "description": "The issuer rotates. A token signed by the new key has a kid the gateway does not know: it refreshes the key set and the token verifies. A token signed by the retired key does not.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "key-set"
+      ],
+      "story": "S06"
+    },
+    {
+      "id": "try-issuer-outage",
+      "label": "Scenario 7: The issuer is down: the last known good key set carries on",
+      "description": "With the issuer down, a token signed by a key the gateway already holds still verifies. A token signed by a key rotated in during the outage cannot be resolved. When the issuer returns it is.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "key-set"
+      ],
+      "story": "S07"
+    },
+    {
+      "id": "try-private-pinned",
+      "label": "Scenario 8: A private issuer with pinned keys",
+      "description": "The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "key-set"
+      ],
+      "story": "S08"
+    },
+    {
+      "id": "try-revocation",
+      "label": "Scenario 9: Revocation and per-deployment attribution",
+      "description": "Two pods of one ServiceAccount are attributed separately. Revoke the identity: the very next request is refused. Restore it, then remove it: the gateway can find no identity for the token.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "federated-identity",
+        "attribution"
+      ],
+      "story": "S09"
+    },
+    {
+      "id": "try-key-owner",
+      "label": "Scenario 10: A key owned by an identity, or by a person",
+      "description": "A key can name an identity as its owner; the console refuses two contradictory forms. When the person who owns a stored key goes inactive that key stops, and the identity-owned key does not. An identity with no key behind it authenticates nobody.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "key-owned"
+      ],
+      "story": "S10"
+    },
+    {
+      "id": "try-platforms",
+      "label": "Scenario 11: Four platforms, one gateway",
+      "description": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "deployment-models"
+      ],
+      "story": "S11"
+    },
+    {
+      "id": "try-sensor",
+      "label": "Scenario 12: The sensor reports with its own token",
+      "description": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "self-hosted-agents",
+        "node-from-claims"
+      ],
+      "story": "S12"
+    },
+    {
+      "id": "try-enforcement",
+      "label": "Scenario 13: Enforcement: audit first, then enforce",
+      "description": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "enforcement-policy"
+      ],
+      "story": "S13"
+    },
+    {
+      "id": "try-tamper",
+      "label": "Tamper with a token",
+      "description": "Mint a good token, change the subject, keep the signature, and verify: the real RS256 check fails.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "enforced-lifetimes"
+      ]
+    },
+    {
+      "id": "try-revoke",
+      "label": "Revoke an identity",
+      "description": "Revoke it and send the very next request: refused, and the audit log says why.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#audit"
+      },
+      "terms": [
+        "attribution"
+      ]
+    },
+    {
+      "id": "concept-why-federated-identity",
+      "label": "Why it matters: Federated Identity (slide 40)",
+      "description": "Challenge: Agents hold stored API keys that outlive workloads and stay valid from anywhere if they leak. Standing-secret findings block agent rollout, and unattended operation is held back by key risk. Technical: Secretless, exactly bound, short-lived tokens verified per request against the issuer, instantly revocable. Business: Standing-secret audit findings close, and unattended agents can be approved at all: lower breach risk, faster adoption. (Ping claims, unverified on our tenant.)",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#talk"
+      },
+      "terms": [
+        "federated-identity",
+        "exact-binding"
+      ]
+    },
+    {
+      "id": "concept-why-self-hosted-agents",
+      "label": "Why it matters: Self-Hosted Agents (slide 41)",
+      "description": "Challenge: Platform components are implicitly trusted infrastructure: trusted by network position, not verified per request, and outside policy. That trust model fails modern platform reviews and blocks the platform's own adoption. Technical: Every component authenticates per request with a platform-issued token, is policy-bound, and is cut off the moment its identity is removed. Business: Materially reduces insider and compromise risk on privileged components and simplifies compliance evidence. (Ping claims, unverified on our tenant.)",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#talk"
+      },
+      "terms": [
+        "self-hosted-agents",
+        "node-from-claims"
+      ]
+    },
+    {
+      "id": "concept-mcp-acceptance",
+      "label": "Accepted across the MCP and LLM gateways: the deck says so, our test did not prove it",
+      "description": "Slide 40 says Federated Identity is accepted across the MCP and LLM gateways with identical verification. Measured (our note, 2026-10-21, pre-release gateway): with a token whose issuer, subject, audience and lifetime all matched, the MCP path answered 401 \"Bearer token required\" and the LLM route 401 \"invalid virtual key\", and the gateway logged no \"workload token accepted\" or \"rejected\" line for either, so the check was never reached. We could not tell whether that image evaluates workload tokens on those routes. Not re-tested on the release. The lab implements the deck's claim and proves nothing about the product.",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#talk"
+      },
+      "terms": [
+        "federated-identity"
+      ]
+    },
+    {
+      "id": "concept-naming",
+      "label": "Federated Identity versus Non-Human Identity",
+      "description": "Slide 35 says Federated Identity is the updated term and Non-Human Identity is retired. Slide 57 of the deck still lists \"Non-Human Identity\". The lab follows slide 35. The console API did not rename: the object is still NonHumanIdentity at /v1/nonhumanidentities (console swagger, 2026-10-31), and so are RefKind values and log lines. Self-Hosted Agents is the new name of \"NHI Agents Discovery & Enforcement\".",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#identities"
+      },
+      "terms": [
+        "federated-identity"
+      ]
+    },
+    {
+      "id": "concept-diagram",
+      "label": "Diagrams",
+      "description": "Three diagrams: the Federated Identity flow, the verification steps, and a Self-Hosted Agent.",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#diagram"
+      },
+      "terms": [
+        "key-set",
+        "self-hosted-agents"
+      ]
+    },
+    {
+      "id": "ref-doctor",
+      "label": "Doctor and health",
+      "description": "Preflight checks and the demo-health/1 endpoint.",
+      "group": "setup",
+      "action": {
+        "type": "route",
+        "href": "/api/health"
+      }
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "title": "One credential, three services",
+      "say": "The Kubernetes identity for one ServiceAccount: a token the platform issued is allowed to the MCP server and to the peer agent, and refused for the LLM provider because the scope is not on the key."
+    },
+    {
+      "id": "S02",
+      "title": "Exact binding: subject, issuer, audience",
+      "say": "Another ServiceAccount, the same name in another namespace, a token from another issuer, no audience and the wrong audience are each refused at their own step."
+    },
+    {
+      "id": "S03",
+      "title": "A key bound to main cannot be used by a pull request",
+      "say": "GitHub Actions: main of the right repository is allowed; a pull request, a pull request from a fork, the wrong environment and a missing pinned claim are refused."
+    },
+    {
+      "id": "S04",
+      "title": "Enforced lifetimes",
+      "say": "Expired, unexpired but minted to live two hours, no expiry, issued in the future and not valid yet are refused; a good token is allowed, and refused once the lab clock passes its expiry."
+    },
+    {
+      "id": "S05",
+      "title": "Algorithms and tampering",
+      "say": "alg none, HS256 signed with the public key, an ES256 header, an attacker's key (under the issuer's kid and under its own), no kid, and a payload altered after signing."
+    },
+    {
+      "id": "S06",
+      "title": "An unknown signing key triggers a refresh",
+      "say": "The issuer rotates. A token signed by the new key has a kid the gateway does not know: it refreshes the key set and the token verifies. A token signed by the retired key does not."
+    },
+    {
+      "id": "S07",
+      "title": "The issuer is down: the last known good key set carries on",
+      "say": "With the issuer down, a token signed by a key the gateway already holds still verifies. A token signed by a key rotated in during the outage cannot be resolved. When the issuer returns it is."
+    },
+    {
+      "id": "S08",
+      "title": "A private issuer with pinned keys",
+      "say": "The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again."
+    },
+    {
+      "id": "S09",
+      "title": "Revocation and per-deployment attribution",
+      "say": "Two pods of one ServiceAccount are attributed separately. Revoke the identity: the very next request is refused. Restore it, then remove it: the gateway can find no identity for the token."
+    },
+    {
+      "id": "S10",
+      "title": "A key owned by an identity, or by a person",
+      "say": "A key can name an identity as its owner; the console refuses two contradictory forms. When the person who owns a stored key goes inactive that key stops, and the identity-owned key does not. An identity with no key behind it authenticates nobody."
+    },
+    {
+      "id": "S11",
+      "title": "Four platforms, one gateway",
+      "say": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way."
+    },
+    {
+      "id": "S12",
+      "title": "The sensor reports with its own token",
+      "say": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay."
+    },
+    {
+      "id": "S13",
+      "title": "Enforcement: audit first, then enforce",
+      "say": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated."
+    }
+  ]
+}

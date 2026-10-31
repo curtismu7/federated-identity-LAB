@@ -20,7 +20,7 @@ export default function AuditTab({ story, lab }) {
     <div className="stack">
       <section className="panel" data-testid="by-deployment">
         <h2 className="panel__title">Requests by deployment <ClaimTag /> <SourceTag source="deck" label="deck claim: every request is attributed to a specific deployment" /></h2>
-        <p className="muted">How a deployment is named (namespace and service account and pod, or repository and ref and run) is the lab's reading. Only verified requests are attributed; a refused one is recorded with the subject it <em>claimed</em>, marked unverified.</p>
+        <p className="muted">How a deployment is named (namespace and service account and pod, or repository and ref and run) is the lab's reading. Only verified requests are attributed; a refused one is recorded with the subject it <strong>claimed</strong>, marked unverified.</p>
         <div className="scroll"><table className="tbl tbl--wide"><thead><tr><th>Principal</th><th>Deployment</th><th>Allowed requests</th></tr></thead>
           <tbody>{byDeployment.length === 0 ? <tr><td colSpan={3} className="muted">No allowed request yet.</td></tr> : byDeployment.map(([k, n]) => { const [p, d] = k.split(" | "); return <tr key={k} data-testid="deployment-row"><td>{visible(p)}</td><td>{visible(d)}</td><td>{n}</td></tr>; })}</tbody></table></div>
       </section>

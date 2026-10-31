@@ -1,0 +1,16 @@
+{
+  "demos": [
+    {
+      "id": "federated-identity-lab",
+      "name": "Federated Identity LAB",
+      "kind": "Demo",
+      "description": "Federated Identity (platform-issued short-lived tokens, exact issuer, subject and audience binding, enforced lifetimes, key-set refresh, a key owned by an identity, revocation) and Self-Hosted Agents (a Kubernetes sensor verified from its token, enforcement modes): a simulation of the 2026-11-02 Ping release claims with real local RS256 verification. Mock tables, or a Live local engine. Every product claim is UNVERIFIED on our tenant.",
+      "url": "http://localhost:7400",
+      "healthPath": "/api/health",
+      "composeFile": "federated-identity-LAB/docker-compose.yml",
+      "composeOverlays": [],
+      "notes": "Host-run: ./scripts/run.sh (port 7400). Docker: HOST_PORT=7400 docker compose up --build -d (published on 127.0.0.1 only). Mock and Live are both loopback-only with zero outbound calls; all issuers and keys live in memory and nothing is fetched from the network.",
+      "catalogId": "D107"
+    }
+  ]
+}
