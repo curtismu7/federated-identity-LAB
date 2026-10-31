@@ -82,6 +82,7 @@ export default function VerifyTab({ story, lab, scenarioId, setScenarioId, pendi
   };
   const verify = async () => {
     const mine = ++seq.current;
+    patch({ result: null }); // the previous verdict is cleared, so a stale answer is never mistaken for the new one
     const r = await lab.act("POST", "/api/verify", { verify: { token, service, ...(identityId ? { identityId } : {}) } });
     if (mine !== seq.current) return;
     const b = r.body || {};
