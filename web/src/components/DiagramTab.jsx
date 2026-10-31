@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import PatternDiagram from "./PatternDiagram";
 import { getJson } from "../api";
 
-const NAMES = [["governance-cycle", "Governance cycle"], ["safe-sync", "Safe sync"], ["private-network-discovery", "Private-network discovery"]];
+const NAMES = [["federated-identity-flow", "Federated Identity flow"], ["verification-steps", "Verification steps"], ["self-hosted-agent", "Self-Hosted Agent"]];
 
 // Diagrams are diagram-studio/1 data loaded by name from the server (rule 17); nothing is drawn from hand-built nodes here.
 export default function DiagramTab({ vertical, resetSignal }) {
   const [pattern, setPattern] = useState(null);
   const [error, setError] = useState(null);
-  const [name, setName] = useState("governance-cycle");
+  const [name, setName] = useState("federated-identity-flow");
   useEffect(() => {
     let live = true; // a late answer for a diagram or vertical the visitor has already left is dropped
     setPattern(null);

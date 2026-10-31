@@ -1,0 +1,164 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import IdentitiesTab from "./components/IdentitiesTab";
+import VerifyTab from "./components/VerifyTab";
+import IssuersTab from "./components/IssuersTab";
+import ModelsTab from "./components/ModelsTab";
+import SensorsTab from "./components/SensorsTab";
+import AuditTab from "./components/AuditTab";
+import DiagramTab from "./components/DiagramTab";
+import TalkTrack from "./components/TalkTrack";
+import LastAction from "./components/LastAction";
+import useLab from "./hooks/useLab";
+import { getJson, resetWorkspace } from "./api";
+
+export const TABS = [
+  { id: "identities", label: "Federated Identity" },
+  { id: "verify", label: "Verify" },
+  { id: "issuers", label: "Issuers and keys" },
+  { id: "models", label: "Deployment models" },
+  { id: "sensors", label: "Self-Hosted Agents" },
+  { id: "audit", label: "Audit" },
+  { id: "diagram", label: "Diagram" },
+  { id: "talk", label: "Talk track" },
+];
+// The banner is never blank and never claims one mode before it knows: until the story answers it says both, honestly.
+const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing here calls a real tenant, gateway, issuer or cluster.";
+export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode (loopback only, no outbound network). ${TAIL}`;
+const MODE_KEY = "fid.mode";
+const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
+
+const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };
+const savedMode = () => { try { const m = window.localStorage.getItem(MODE_KEY); return m === "live" || m === "mock" ? m : null; } catch { return null; } };
+
+export default function App() {
+  const [vertical, setVertical] = useState("finance");
+  const [story, setStory] = useState(null);
+  const [mode, setModeState] = useState(null);
+  const [scenarioId, setScenarioId] = useState(null);
+  const [error, setError] = useState(null);
+  const [tab, setTab] = useState(tabFromHash());
+  const [presenter, setPresenter] = useState(false);
+  const [resetSignal, setResetSignal] = useState(0);
+  const [resetMsg, setResetMsg] = useState("");
+  const [pending, setPending] = useState(null);
+  const tabsRef = useRef(null);
+  const lab = useLab({ mode, vertical, scenario: scenarioId });
+
+  useEffect(() => { getJson("/api/info").then((i) => setModeState((m) => m || savedMode() || i.mode), () => setModeState((m) => m || savedMode() || "mock")); }, []);
+  useEffect(() => {
+    let live = true; // a late story for a vertical the visitor has already left is dropped
+    getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
+    return () => { live = false; };
+  }, [vertical]);
+  useEffect(() => {
+    const on = () => setTab(tabFromHash());
+    window.addEventListener("hashchange", on);
+    return () => window.removeEventListener("hashchange", on);
+  }, []);
+  const setMode = (m) => { setModeState(m); try { window.localStorage.setItem(MODE_KEY, m); } catch { /* storage blocked */ } };
+  const select = (id) => { setTab(id); try { window.history.replaceState(null, "", `#${id}`); } catch { /* ignore */ } };
+  // The Models tab's Try buttons: open Verify with that preset (or another tab).
+  const tryPreset = useCallback((presetId, toTab = "verify") => { if (presetId) setPending({ id: presetId, n: Date.now() }); select(toTab); }, []);
+
+  // Keep the active tab fully in view in the scrolling tab strip (375px).
+  useEffect(() => {
+    const strip = tabsRef.current; const el = document.getElementById(`tab-${tab}`);
+    if (!strip || !el) return;
+    const left = el.offsetLeft - strip.offsetLeft;
+    if (left < strip.scrollLeft || left + el.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = Math.max(0, left - 8);
+  }, [tab]);
+
+  useEffect(() => {
+    const on = (e) => {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (e.key === "p" || e.key === "P") setPresenter((v) => !v);
+      else if (e.key === "Escape") setPresenter(false);
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+
+  // Reset: the server clears this workspace's engines (identities, keys, issuers, audit, sensors, findings, the clock); the diagram goes back in place.
+  const reset = useCallback(async () => {
+    const ok = await resetWorkspace().catch(() => false);
+    setResetSignal((n) => n + 1);
+    await lab.reload();
+    setResetMsg(ok ? "Reset: your workspace's identities, keys, issuers, audit log, sensors, findings and lab clock are back to the start, and the diagram is back in place." : "Reset failed on the server; the view was reloaded.");
+  }, [lab.reload]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const onKeyTab = (e, i) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+    select(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
+  };
+
+  const banner = story && mode ? story.banner[mode] : BANNER_UNKNOWN;
+  const ready = story && mode;
+  const props = { story, mode, vertical, lab };
+  return (
+    <div className={`app${presenter ? " app--presenter" : ""}`}>
+      <header>
+        <p className="banner" role="status" data-state={mode === "live" ? "live" : "mock"} data-testid="banner">{banner}</p>
+        <div className="head">
+          <div>
+            <h1 className="head__title">Federated Identity LAB</h1>
+            {!presenter && story && <p className="head__intro">{story.intro}</p>}
+          </div>
+          <div className="head__tools">
+            <div className="seg" role="group" aria-label="Mode">
+              <button type="button" aria-pressed={mode === "mock"} onClick={() => setMode("mock")} data-testid="mode-mock">Mock</button>
+              <button type="button" aria-pressed={mode === "live"} onClick={() => setMode("live")} data-testid="mode-live">Live</button>
+            </div>
+            <span className="chip" data-testid="mode">Mode: {mode || "..."}{mode === "live" ? " (local engine, loopback)" : mode === "mock" ? " (tables)" : ""}</span>
+            {!presenter && (
+              <label className="inline">Vertical{" "}
+                <select value={vertical} onChange={(e) => setVertical(e.target.value)} data-testid="vertical">
+                  {(story ? story.verticals : ["finance"]).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+            )}
+            <button type="button" onClick={reset} data-testid="reset">Reset</button>
+            <button type="button" aria-pressed={presenter} onClick={() => setPresenter((v) => !v)} data-testid="presenter">{presenter ? "Exit presenter (Esc)" : "Presenter (P)"}</button>
+          </div>
+        </div>
+      </header>
+      <main>
+        <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
+        <div role="tablist" aria-label="Lab sections" className="tabs" ref={tabsRef}>
+          {TABS.map((t, i) => (
+            <button key={t.id} id={`tab-${t.id}`} role="tab" type="button" aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
+              onClick={() => select(t.id)} onKeyDown={(e) => onKeyTab(e, i)}>{t.label}</button>
+          ))}
+        </div>
+        <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
+          {error || lab.error ? <p className="app-error" role="alert">Could not load the lab ({error || lab.error}). Is the server running?</p> : !ready ? <p className="muted">Loading...</p> : (
+            <>
+              {mode === "mock" && lab.scenario && WRITE_TABS.includes(tab) && tab !== "verify" && (
+                <p className="muted" data-testid="scenario-note">Showing the end of the scripted scenario "{lab.scenario.title}". Pick another on the Verify tab, or switch to Live to act yourself. Mock only reads tables.</p>
+              )}
+              {presenter && tab !== "talk" && (
+                <aside className="presenter-say" data-testid="presenter-say" aria-label="Talk track">
+                  {story.talkTrack.filter((t) => (story.presenterTalk[tab] || []).includes(t.id)).map((t) => <p key={t.id}><strong>{t.title}.</strong> {t.say}</p>)}
+                </aside>
+              )}
+              {!lab.state && tab !== "diagram" && tab !== "talk" ? <p className="muted">Loading...</p> : (
+                <>
+                  {tab === "identities" && <IdentitiesTab {...props} />}
+                  {tab === "verify" && <VerifyTab {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} />}
+                  {tab === "issuers" && <IssuersTab {...props} />}
+                  {tab === "models" && <ModelsTab {...props} tryPreset={tryPreset} />}
+                  {tab === "sensors" && <SensorsTab {...props} />}
+                  {tab === "audit" && <AuditTab {...props} />}
+                </>
+              )}
+              {tab === "diagram" && <DiagramTab vertical={vertical} resetSignal={resetSignal} />}
+              {tab === "talk" && <TalkTrack story={story} />}
+              {mode === "live" && ["identities", "issuers", "audit", "models"].includes(tab) && <LastAction last={lab.last} />}
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
