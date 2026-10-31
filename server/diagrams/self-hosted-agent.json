@@ -1,0 +1,156 @@
+{
+  "schema": "diagram-studio/1",
+  "id": "self-hosted-agent",
+  "title": "Self-Hosted Agents: a sensor verified, not vouched",
+  "lede": "The Kubernetes sensor is enrolled as its own principal. Each report carries a short-lived token minted for a generated audience; the controller verifies it and takes the node from the token, then applies the policy bound to the identity. The lab runs no eBPF: the reports are simulated. Ping release claim, UNVERIFIED on our tenant. Simulated.",
+  "groups": {
+    "src": {
+      "label": "Workloads and issuers",
+      "color": "grey"
+    },
+    "ping": {
+      "label": "Privilege gateway and controller",
+      "color": "red"
+    },
+    "people": {
+      "label": "Platform",
+      "color": "blue"
+    },
+    "rec": {
+      "label": "Records and backends",
+      "color": "dark"
+    }
+  },
+  "nodes": [
+    {
+      "id": "ctl",
+      "label": "Controller verifies every report",
+      "group": "ping",
+      "x": 1000,
+      "y": 300
+    },
+    {
+      "id": "pod",
+      "label": "Sensor pod on {{castNode1}}",
+      "group": "src",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "kube",
+      "label": "Kubernetes issuer",
+      "group": "people",
+      "x": 0,
+      "y": 300
+    },
+    {
+      "id": "pol",
+      "label": "Policy: mode, namespaces, actions",
+      "group": "ping",
+      "x": 1000,
+      "y": 600
+    },
+    {
+      "id": "find",
+      "label": "Findings attributed to the node in the token",
+      "group": "rec",
+      "x": 500,
+      "y": 600
+    },
+    {
+      "id": "act",
+      "label": "Decision: allow, monitor, warn or deny",
+      "group": "rec",
+      "x": 500,
+      "y": 300
+    }
+  ],
+  "edges": [
+    {
+      "source": "ctl",
+      "target": "pod",
+      "label": "enrolment: a generated audience"
+    },
+    {
+      "source": "kube",
+      "target": "pod",
+      "label": "projected token for that audience"
+    },
+    {
+      "source": "pod",
+      "target": "ctl",
+      "label": "report with its token; the body's node is ignored"
+    },
+    {
+      "source": "ctl",
+      "target": "kube",
+      "label": "key set (JWKS)"
+    },
+    {
+      "source": "ctl",
+      "target": "find",
+      "label": "node taken from the token's claims"
+    },
+    {
+      "source": "ctl",
+      "target": "pol",
+      "label": "policy bound to this identity"
+    },
+    {
+      "source": "pol",
+      "target": "act",
+      "label": "audit: would have blocked; enforce: blocked"
+    }
+  ],
+  "steps": [
+    {
+      "title": "Enrol",
+      "what": "Privilege generates an audience nobody can guess and creates the sensor's own identity.",
+      "edges": [
+        0
+      ]
+    },
+    {
+      "title": "Project",
+      "what": "The platform projects a short-lived token for that audience into the pod. No standing secret is stored on the node.",
+      "edges": [
+        1
+      ]
+    },
+    {
+      "title": "Report",
+      "what": "The sensor reports with its token. A node named in the body is ignored.",
+      "edges": [
+        2
+      ]
+    },
+    {
+      "title": "Key set",
+      "what": "The controller verifies issuer, subject, audience and scope against the issuer's key set.",
+      "edges": [
+        3
+      ]
+    },
+    {
+      "title": "Attribute",
+      "what": "The reporting node is taken from the token's claims, so a compromised agent cannot misattribute findings.",
+      "edges": [
+        4
+      ]
+    },
+    {
+      "title": "Policy",
+      "what": "The policy bound to the identity decides, for the namespaces in scope.",
+      "edges": [
+        5
+      ]
+    },
+    {
+      "title": "Decide",
+      "what": "In audit mode a denied finding is recorded as would-have-blocked; in enforce mode it is blocked.",
+      "edges": [
+        6
+      ]
+    }
+  ]
+}

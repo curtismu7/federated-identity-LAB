@@ -14,7 +14,7 @@ export const DETECTORS = [
   D('jwt', /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g),
   D('bearer', /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{10,}/gi),
   D('userinfo', /\b[a-z][a-z0-9+.-]{1,12}:\/\/[^\s/@:]{1,64}:[^\s/@]{1,128}@/gi),
-  D('assignment', /\b(?:password|passwd|pwd|pw|secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?\s*(?:[:=]|is)\s*\S{3,}/gi),
+  D('assignment', /\b(?:(?:password|passwd|pwd|pw|passphrase)s?\s*(?:[:=]|is)\s*\S{3,}|(?:secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?\s*[:=]\s*\S{3,})/gi),
   D('authorization', /\bAuthorization\s*[:=]\s*\S+(?:\s+\S+)?/gi),
   D('long-blob', /[A-Za-z0-9+/_=-]{32,}/g),
 ];

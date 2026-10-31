@@ -1,0 +1,144 @@
+{
+  "schema": "diagram-studio/1",
+  "id": "federated-identity-flow",
+  "title": "Federated Identity: one platform-issued credential, three services",
+  "lede": "The platform issues the workload a short-lived token. The gateway checks it against the issuer's key set and the identity's exact binding, then calls the backend with the application's own credential: the token stops at the gateway. Ping release claim, UNVERIFIED on our tenant. Simulated.",
+  "groups": {
+    "src": {
+      "label": "Workloads and issuers",
+      "color": "grey"
+    },
+    "ping": {
+      "label": "Privilege gateway and controller",
+      "color": "red"
+    },
+    "people": {
+      "label": "Platform",
+      "color": "blue"
+    },
+    "rec": {
+      "label": "Records and backends",
+      "color": "dark"
+    }
+  },
+  "nodes": [
+    {
+      "id": "plat",
+      "label": "Platform issuer (Kubernetes, GitHub, GitLab, SPIRE)",
+      "group": "people",
+      "x": 0,
+      "y": 300
+    },
+    {
+      "id": "wl",
+      "label": "Workload: {{castAgent}} in {{castNs}}",
+      "group": "src",
+      "x": 500,
+      "y": 0
+    },
+    {
+      "id": "gw",
+      "label": "Gateway verifies the token",
+      "group": "ping",
+      "x": 1000,
+      "y": 300
+    },
+    {
+      "id": "fid",
+      "label": "Federated Identity: exact issuer, subject, audience, lifetime cap",
+      "group": "ping",
+      "x": 1000,
+      "y": 600
+    },
+    {
+      "id": "be",
+      "label": "Backend: MCP server, peer agent or LLM provider",
+      "group": "rec",
+      "x": 500,
+      "y": 600
+    },
+    {
+      "id": "aud",
+      "label": "Audit: attributed to a deployment",
+      "group": "rec",
+      "x": 0,
+      "y": 600
+    }
+  ],
+  "edges": [
+    {
+      "source": "plat",
+      "target": "wl",
+      "label": "short-lived token, rotated by the platform"
+    },
+    {
+      "source": "wl",
+      "target": "gw",
+      "label": "presents the token; the scope is on the key"
+    },
+    {
+      "source": "gw",
+      "target": "plat",
+      "label": "key set (JWKS): refresh on an unknown kid"
+    },
+    {
+      "source": "gw",
+      "target": "fid",
+      "label": "exact match, enforced lifetime"
+    },
+    {
+      "source": "gw",
+      "target": "be",
+      "label": "the application's own credential; the token stops here"
+    },
+    {
+      "source": "gw",
+      "target": "aud",
+      "label": "who, which deployment, allowed or refused"
+    }
+  ],
+  "steps": [
+    {
+      "title": "Token issued",
+      "what": "The platform issues the workload a short-lived token. Nothing long-lived is stored in the workload.",
+      "edges": [
+        0
+      ]
+    },
+    {
+      "title": "Token presented",
+      "what": "The workload presents it. The same identity can reach MCP, A2A and LLM; only the scopes on the key differ.",
+      "edges": [
+        1
+      ]
+    },
+    {
+      "title": "Key set",
+      "what": "The gateway holds the issuer's key set, refreshes it every fifteen minutes and on an unknown signing key, and keeps the last known good set through an outage.",
+      "edges": [
+        2
+      ]
+    },
+    {
+      "title": "Exact binding",
+      "what": "Issuer, subject and audience match exactly, expiry is required and the lifetime is capped.",
+      "edges": [
+        3
+      ]
+    },
+    {
+      "title": "Backend isolation",
+      "what": "The backend receives the application's own configured credential. The workload token is never forwarded.",
+      "edges": [
+        4
+      ]
+    },
+    {
+      "title": "Attribution",
+      "what": "Every request is attributed to a specific deployment, and revoking the identity cuts the workload off at once.",
+      "edges": [
+        5
+      ]
+    }
+  ]
+}

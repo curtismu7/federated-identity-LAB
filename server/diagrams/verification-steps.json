@@ -1,0 +1,170 @@
+{
+  "schema": "diagram-studio/1",
+  "id": "verification-steps",
+  "title": "What the gateway checks, in order",
+  "lede": "Each step must pass before the next runs; the first failure stops the request and the lab names the exact reason (a real gateway's refusal is thin: measured, our note). Step order is the lab's. Ping release claim, UNVERIFIED on our tenant. Simulated.",
+  "groups": {
+    "src": {
+      "label": "Workloads and issuers",
+      "color": "grey"
+    },
+    "ping": {
+      "label": "Privilege gateway and controller",
+      "color": "red"
+    },
+    "people": {
+      "label": "Platform",
+      "color": "blue"
+    },
+    "rec": {
+      "label": "Records and backends",
+      "color": "dark"
+    }
+  },
+  "nodes": [
+    {
+      "id": "tok",
+      "label": "Token presented",
+      "group": "src",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "par",
+      "label": "Parse, identity, algorithm, issuer",
+      "group": "ping",
+      "x": 500,
+      "y": 0
+    },
+    {
+      "id": "keys",
+      "label": "Key set, refresh on an unknown kid",
+      "group": "ping",
+      "x": 1000,
+      "y": 0
+    },
+    {
+      "id": "sig",
+      "label": "RS256 signature",
+      "group": "ping",
+      "x": 1000,
+      "y": 300
+    },
+    {
+      "id": "cl",
+      "label": "Expiry, issued-at, lifetime cap, audience, subject, pinned claims",
+      "group": "ping",
+      "x": 500,
+      "y": 300
+    },
+    {
+      "id": "key",
+      "label": "A key owned by the identity, and the scope on it",
+      "group": "ping",
+      "x": 0,
+      "y": 300
+    },
+    {
+      "id": "ok",
+      "label": "Allowed: backend credential injected, audit entry",
+      "group": "rec",
+      "x": 0,
+      "y": 600
+    },
+    {
+      "id": "no",
+      "label": "Refused with the exact reason, audit entry",
+      "group": "rec",
+      "x": 1000,
+      "y": 600
+    }
+  ],
+  "edges": [
+    {
+      "source": "tok",
+      "target": "par",
+      "label": "three parts, JSON, an enabled identity"
+    },
+    {
+      "source": "par",
+      "target": "keys",
+      "label": "asymmetric only; iss exact"
+    },
+    {
+      "source": "keys",
+      "target": "sig",
+      "label": "kid found, or refreshed"
+    },
+    {
+      "source": "sig",
+      "target": "cl",
+      "label": "authentic: the claims can be trusted"
+    },
+    {
+      "source": "cl",
+      "target": "key",
+      "label": "all exact"
+    },
+    {
+      "source": "key",
+      "target": "ok",
+      "label": "scope on the key"
+    },
+    {
+      "source": "cl",
+      "target": "no",
+      "label": "any failed step stops here"
+    }
+  ],
+  "steps": [
+    {
+      "title": "Present",
+      "what": "The token arrives with the scope the caller wants.",
+      "edges": [
+        0
+      ]
+    },
+    {
+      "title": "Parse and algorithm",
+      "what": "none and HS* are refused before any key is used; the issuer must match exactly.",
+      "edges": [
+        1
+      ]
+    },
+    {
+      "title": "Find the key",
+      "what": "An unknown kid triggers one refresh of the key set.",
+      "edges": [
+        2
+      ]
+    },
+    {
+      "title": "Signature",
+      "what": "A real RSA check: an altered payload fails here.",
+      "edges": [
+        3
+      ]
+    },
+    {
+      "title": "Claims",
+      "what": "Expiry, issued-at, the lifetime cap, the audience, the subject and every pinned claim.",
+      "edges": [
+        4
+      ]
+    },
+    {
+      "title": "Key and scope",
+      "what": "The identity must own a usable key that carries the scope.",
+      "edges": [
+        5
+      ]
+    },
+    {
+      "title": "Refused",
+      "what": "The first failing step names the reason.",
+      "edges": [
+        6
+      ]
+    }
+  ]
+}
