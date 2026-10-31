@@ -50,3 +50,12 @@ export function jwkProblem(jwk) {
   try { crypto.createPublicKey({ key: { kty: 'RSA', n: jwk.n, e: jwk.e }, format: 'jwk' }); } catch { return 'not a usable RSA public key'; }
   return null;
 }
+
+// A token with its payload altered after signing (the subject gains a character) and the signature left as it was: the "tamper" the lab shows. Never throws.
+export function tamperToken(token) {
+  const p = parseToken(token);
+  if (!p.ok) return typeof token === 'string' ? token : '';
+  const payload = { ...p.payload, sub: `${typeof p.payload.sub === 'string' ? p.payload.sub : ''}x` };
+  const [h, , s] = token.split('.');
+  return `${h}.${b64u(JSON.stringify(payload))}.${s}`;
+}

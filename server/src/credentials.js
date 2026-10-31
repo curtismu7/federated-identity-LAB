@@ -1,6 +1,6 @@
 // Credential-shaped text. Anything a visitor types that looks like a token, a key, a password or key material is masked on the way IN
-// (reason, comment) so the raw value never enters state, a receipt, an outbox entry, a hop pane, a log line or an error.
-// Lab-written detectors; linear patterns only (no nested quantifiers), run on input capped at MAX_FREE characters.
+// (a name, a claim, a note) so the raw value never enters state, an audit entry, a hop pane, a log line or an error.
+// Lab-written detectors; linear patterns only (no nested quantifiers), run on input capped at 20000 characters. A heuristic: it can miss a secret.
 export const MAX_FREE = 400;
 
 const D = (id, re) => ({ id, re });
@@ -13,7 +13,9 @@ export const DETECTORS = [
   D('api-key', /\bsk-[A-Za-z0-9_-]{12,}/g),
   D('jwt', /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g),
   D('bearer', /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{10,}/gi),
-  D('assignment', /\b(?:password|passwd|pwd|secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?\s*[:=]\s*\S{3,}/gi),
+  D('userinfo', /\b[a-z][a-z0-9+.-]{1,12}:\/\/[^\s/@:]{1,64}:[^\s/@]{1,128}@/gi),
+  D('assignment', /\b(?:password|passwd|pwd|pw|secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?\s*(?:[:=]|is)\s*\S{3,}/gi),
+  D('authorization', /\bAuthorization\s*[:=]\s*\S+(?:\s+\S+)?/gi),
   D('long-blob', /[A-Za-z0-9+/_=-]{32,}/g),
 ];
 
@@ -37,8 +39,12 @@ export function maskText(input) {
   return text ? maskSpans(text, findCredentials(text)) : text;
 }
 
-// Free text from the visitor: control and bidi characters stripped, capped, credential-shaped runs masked. Never throws, never echoes raw.
+const INVISIBLE = /\p{Cf}/gu; // zero-width, bidi and other format characters: deleted BEFORE matching, so interleaving cannot hide a secret
+const CONTROL = /[\p{Cc}\p{Zl}\p{Zp}]/gu;
+
+// Free text from the visitor: NFKC-folded, invisible characters deleted, control and bidi characters turned into spaces, credential-shaped runs masked
+// BEFORE the text is cut to length. Never throws, never echoes a raw credential.
 export function cleanFree(value, max = MAX_FREE) {
-  const flat = String(value ?? '').replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, ' ');
+  const flat = String(value ?? '').normalize('NFKC').replace(INVISIBLE, '').replace(CONTROL, ' ');
   return maskText(flat.slice(0, 20000)).replace(/\s+/g, ' ').trim().slice(0, max);
 }

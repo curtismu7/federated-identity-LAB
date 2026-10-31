@@ -13,7 +13,7 @@ import {
 import { GENERATIONS, keyAt } from './keys.js';
 import { b64u, jwkProblem, parseToken, signHS256, signRS256, signingInput, verifyRS256 } from './jwt.js';
 import { cleanFree, findCredentials } from './credentials.js';
-import { cleanClaims, show } from './clean.js';
+import { cleanClaims, cleanValue, show } from './clean.js';
 import { formatTraceparent } from './trace.js';
 import { refuse } from './errors.js';
 
@@ -412,7 +412,7 @@ export class Engine {
     need(isObj(c) && Object.keys(c).every((k) => ['iss', 'sub', 'aud', 'extra'].includes(k)), 'bad_claims', 'claims takes iss, sub, aud and extra');
     const t = input.times === undefined ? {} : input.times;
     need(isObj(t) && Object.keys(t).every((k) => ['iat', 'exp', 'nbf'].includes(k)), 'bad_times', 'times takes iat, exp and nbf (seconds from the lab clock)');
-    const text = (v, what) => { need(typeof v === 'string', 'bad_claims', `${what} must be text`); return cleanFree(v, LIMITS.claimText); };
+    const text = (v, what) => { need(typeof v === 'string', 'bad_claims', `${what} must be text`); return cleanValue(v, LIMITS.claimText); };
     const offset = (v, dflt) => { const x = v === undefined ? dflt : v; if (x === null) return null; need(Number.isInteger(x) && Math.abs(x) <= 31_536_000, 'bad_times', 'a time is a whole number of seconds from the lab clock (or null to leave it out)'); return this.s.now + x; };
     const payload = {};
     const iss = c.iss === undefined ? (isAttacker ? ATTACKER.url : ISSUER[input.issuer].url) : c.iss;
@@ -431,7 +431,7 @@ export class Engine {
         need(CLAIM_NAME.test(name) && !RESERVED_CLAIMS.has(name), 'bad_claims', 'an extra claim name is short and plain, and is not one of iss, sub, aud, exp, iat or nbf');
         const v = c.extra[name];
         need(typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)), 'bad_claims', 'an extra claim value is text, a number or true or false');
-        Object.defineProperty(payload, name, { value: typeof v === 'string' ? cleanFree(v, LIMITS.claimText) : v, enumerable: true, writable: true, configurable: true });
+        Object.defineProperty(payload, name, { value: typeof v === 'string' ? cleanValue(v, LIMITS.claimText) : v, enumerable: true, writable: true, configurable: true });
       }
     }
     const header = { alg, typ: 'JWT' }; if (kid !== null) header.kid = kid;
