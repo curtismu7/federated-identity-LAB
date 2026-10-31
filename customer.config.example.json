@@ -1,0 +1,4 @@
+{
+  "_readme": "Copy to customer.config.json (git-ignored) to brand the lab. Only these three cast values are read; everything else is ignored. owner is the first key owner's account name (lowercase letters, digits, dots and dashes, and not the name of anyone else in the pack); host is one label and becomes <host>.example. Overrides the chosen vertical's values. The repositories, namespaces, nodes and people in the stories are synthetic and are not otherwise configurable.",
+  "cast": { "brand": "Fabrikam Bank", "owner": "maya.chen", "host": "fabrikam" }
+}
