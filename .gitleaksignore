@@ -1,0 +1,2 @@
+# Test fixtures, not secrets: AWS's published example key in an echo test
+247e088eedd4859cae7fc1e45a33715f648e6e26:server/test/api.test.js:aws-access-token:173
