@@ -104,6 +104,16 @@ describe("the editor signs exactly what is typed and says so", () => {
   }, 120000);
 });
 
+describe("the unknown-kid refresh cooldown is visible", () => {
+  it("a second unknown kid in the same lab minute is refused without a refresh and the page says so; a lab minute later it refreshes again", async () => {
+    await mount(); await live();
+    await mintPreset("attacker-own-kid"); await verifyIt(); expect(code()).toBe("unknown_kid"); expect(screen.getByTestId("refresh-note")).toBeInTheDocument(); expect(screen.queryByTestId("refresh-cooldown-note")).toBeNull();
+    await mintPreset("attacker-own-kid"); await verifyIt(); expect(code()).toBe("unknown_kid"); expect(screen.getByTestId("refresh-cooldown-note")).toHaveTextContent(/one such refresh per identity per lab minute/); expect(screen.queryByTestId("refresh-note")).toBeNull();
+    await tab("Issuers and keys"); await waitFor(() => expect(screen.getByTestId("advance-1")).toBeEnabled(), T); await click("advance-1"); await waitFor(() => expect(screen.getByTestId("clock-now")).toHaveTextContent(/09:01:00 UTC/), T);
+    await mintPreset("attacker-own-kid"); await verifyIt(); expect(screen.getByTestId("refresh-note")).toBeInTheDocument();
+  }, 90000);
+});
+
 describe("the browser parser is as strict as the server's, and finds the issuer by iss", () => {
   const part = (o) => btoa(JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
   const b64 = (u8) => { let s = ""; u8.forEach((b) => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };

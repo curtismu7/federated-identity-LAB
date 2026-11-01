@@ -190,6 +190,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
               <Verdict r={result} />
               {result.steps && <VerifySteps steps={result.steps} />}
               {result.refresh?.attempted && <p className="muted" data-testid="refresh-note">Key set refreshed on an unknown kid: {result.refresh.ok ? "the issuer answered" : "the issuer did not answer, the last known good set was kept"}.</p>}
+              {result.refresh?.cooledDown && <p className="muted" data-testid="refresh-cooldown-note">The gateway did not refresh its key set for this unknown kid: it allows one such refresh per identity per lab minute (lab-invented limit; the deck does not say). Move the lab clock a minute on the Issuers and keys tab to let it try again.</p>}
               {result.ok && (
                 <div data-testid="allowed-detail">
                   <p>Principal: <strong>{visible(result.principal)}</strong> (a key owned by an identity, not a borrowed person). Attributed to the deployment: <strong data-testid="deployment">{visible(result.deployment)}</strong>.</p>
