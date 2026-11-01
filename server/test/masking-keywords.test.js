@@ -28,6 +28,15 @@ test('keyword plus value in the looser spellings is masked by every cleaner (S1)
   for (const text of forms) for (const [name, fn] of CLEANERS) assert.ok(!fn(`please note ${text} thanks`).includes(V), `${text} through ${name}`);
 });
 
+test('vertical tab and form feed are deleted like the other controls (a keyword split by one is found); tab, line feed and carriage return are separators', () => {
+  for (const ch of ['\u000b', '\u000c']) {
+    for (const [name, fn] of CLEANERS) assert.ok(!fn(`pass${ch}word: CANARYvtff12`).includes('CANARYvtff12'), `U+${ch.charCodeAt(0).toString(16)} through ${name}`);
+    assert.equal(cleanFree(`a${ch}b`), 'ab');
+  }
+  assert.equal(cleanFree('a\tb'), 'a b'); assert.equal(cleanFree('a\nb'), 'a b'); assert.equal(cleanFree('a\rb'), 'a b');
+  for (const ch of ['\t', '\n', '\r']) assert.ok(!cleanFree(`password${ch}CANARYtab123`).includes('CANARYtab123'), 'a separator still separates the keyword from its value');
+});
+
 test('the looser spellings are masked when the keyword is disguised with hidden characters, controls or percent-encoding too', () => {
   const woven = (w, ch) => [...w].join(ch);
   for (const text of [`${woven('password', '​')} ${V}`, `${woven('password', '\u0001')} ${V}`, `${woven('pass', '\u0085')}: ${V}`, `${woven('token', '\u007f')} is ${V}`, encodeURIComponent(`password ${V}`), encodeURIComponent(encodeURIComponent(`login: bob / ${V}`))]) {
@@ -39,7 +48,7 @@ test('ordinary sentences stay readable: the loose forms need a value that looks 
   const plain = [
     'password reset', 'Reset your password and sign in again', 'the password policy is documented', 'a password manager', 'password issue', 'the token is accepted', 'The token stops at the gateway.',
     'This token is short-lived and signed by the issuer', 'token limit 4096 characters', 'token 4096 chars', 'secret santa', 'a shared secret is never forwarded', 'pass the audience check',
-    'bypass: allowed', 'compass: north', 'Pass or fail', 'passes: 3', 'access key owned by an identity', 'api key rotation is manual', 'the credential is injected by the gateway',
+    'bypass: allowed', 'compass: north', 'bypass 1234567', 'compass 1234567', 'Pass or fail', 'passes: 3', 'access key owned by an identity', 'api key rotation is manual', 'the credential is injected by the gateway',
     'credentials expire', 'user: bob', 'login: bob', 'username: alice, role: admin', 'account: acme', 'user: /home/bob/notes', 'token for the pod', 'The key stops when its custodian goes inactive',
     'system:serviceaccount:payments:agent-runner', 'payments/agent-runner pod agent-runner-7d9f', 'secret 2026', 'password 12345', 'the token 12345 is short',
   ];
@@ -56,6 +65,8 @@ test('boundaries of the loose forms, literally: a value of 6 characters with a d
   assert.ok(!masked('password abcdef', 'assignment'), '6 letters, no digit');
   assert.ok(masked('token is abc123', 'assignment') && !masked('token is abc12', 'assignment') && !masked('token is abcdef', 'assignment'));
   assert.ok(masked('password - abc123', 'assignment') && !masked('password - abc12', 'assignment'));
+  const dotted = (n) => 'u.'.repeat(n / 2); // no 32-character blob in it
+  assert.ok(masked(`login: ${dotted(64)} / abc123`, 'assignment') && !masked(`login: ${dotted(64)}u / abc123`, 'assignment'), 'a login pair: a 64 character user name, not 65');
   assert.ok(masked('login: bob / abc123', 'assignment') && !masked('login: bob / abc12', 'assignment') && !masked('login: bob / abcdef', 'assignment'));
   assert.ok(masked('password: abc', 'assignment'), 'a separator: 3 characters are enough');
   assert.ok(!masked('password: ab', 'assignment'), 'a 2-character value is not masked (documented)');
@@ -76,6 +87,11 @@ test('a user name and password in a URL without a scheme are masked (S2), up to 
   assert.ok(masked(user(64), 'userinfo'), 'a 64 character user name');
   assert.ok(!masked(user(65), 'userinfo'), 'a 65 character user name is not found by this detector');
   assert.ok(masked(`https://${'u'.repeat(64)}:pw1234@host.example`, 'userinfo') && !masked(`https://${'u'.repeat(65)}:pw1234@host.example`, 'userinfo'), 'same limit with a scheme');
+  // a host with no dot is found only by the scheme detector, so these pin its own limits
+  const scheme = (u, p) => `https://${'u'.repeat(u)}:${'p'.repeat(p)}@hostname`;
+  assert.ok(masked(scheme(64, 8), 'userinfo') && !masked(scheme(65, 8), 'userinfo'), 'scheme detector: a 64 character user name, not 65');
+  assert.ok(masked(scheme(8, 128), 'userinfo') && !masked(scheme(8, 129), 'userinfo'), 'scheme detector: a 128 character password, not 129');
+  assert.ok(masked(scheme(1, 1), 'userinfo') && !masked('https://:pw@hostname', 'userinfo'), 'scheme detector: a user name is needed');
   assert.ok(masked(`bob:${'p'.repeat(128)}@host.example`, 'userinfo') && !masked(`bob:${'p'.repeat(129)}@host.example`, 'userinfo'), 'a 128 character password');
 });
 
@@ -89,6 +105,10 @@ test('a bearer value that contains the word bearer or basic is masked whole, and
   }
   assert.ok(masked('Bearer abcdefghij', 'bearer') && !masked('Bearer abcdefghi', 'bearer'), '10 characters are masked, 9 are not');
   assert.ok(masked('Basic abcdefghij', 'bearer') && !masked('Basic abcdefghi', 'bearer'));
+  // the glued second value has its own detector, with its own threshold: 10 characters are masked, 9 are not
+  assert.ok(!cleanFree(`Bearer ${'A'.repeat(12)}Bearer ${'B'.repeat(10)}`, 2000).includes('BBBBBB'), 'glued, 10 characters');
+  assert.ok(cleanFree(`Bearer ${'A'.repeat(12)}Bearer ${'B'.repeat(9)}`, 2000).includes('BBBBBBBBB'), 'glued, 9 characters are below the threshold');
+  assert.ok(!cleanFree(`Basic ${'A'.repeat(12)}Basic ${'B'.repeat(10)}`, 2000).includes('BBBBBB'), 'glued Basic');
   assert.equal(cleanFree('standard bearer of the house', 2000), 'standard bearer of the house');
 });
 
@@ -134,7 +154,7 @@ test('everything the lab itself writes passes through the response mask unchange
 test('a \\uXXXX escape written out as text is read as the character it names when matching ({"\\u0070assword":"x"})', () => {
   const U = (cp) => `\\u${cp.toString(16).padStart(4, '0')}`; // the escape as TEXT, assembled at run time (a scanner decodes escapes it finds in source)
   const V = 'CANARYuesc123';
-  const forms = [`{"${U(0x70)}assword":"${V}"}`, `{"\\u{70}assword":"${V}"}`, `${U(0x70)}assword: ${V}`, `{"${U(0x70)}${U(0x61)}ssword":"${V}"}`, `pass${U(0x200b)}word: ${V}`, `pass${U(1)}word: ${V}`, `${U(0x62)}earer ${V}4`, `password${U(0x3a)} ${V}`];
+  const forms = [`{"${U(0x70)}assword":"${V}"}`, `{"\\u{70}assword":"${V}"}`, `${U(0x70)}assword: ${V}`, `{"${U(0x70)}${U(0x61)}ssword":"${V}"}`, `pass${U(0x200b)}word: ${V}`, `pass${U(1)}word: ${V}`, `${U(0x62)}earer ${V}4`, `password${U(0x3a)} ${V}`, `passw${U(0x6f)}rd: ${V}`, `passw\\u006Frd: ${V}`, `passw\\u{6F}rd: ${V}`];
   for (const text of forms) for (const [name, fn] of CLEANERS) assert.ok(!fn(text).includes('CANARYuesc123'), `${text} through ${name}`);
   assert.equal(credentialProblem('{"\\u0070assword":"x"}'), true, 'a claim shaped like that is refused');
   for (const ok of ['a\\u12 b', 'path C:\\users\\bob', '\\u{110000}', '\\uZZZZ']) assert.equal(cleanFree(ok, 100), ok, ok);

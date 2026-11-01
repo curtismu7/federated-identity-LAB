@@ -134,7 +134,14 @@ npm test    # server (node --test), web (vitest, drives the UI against the real 
 
 The shared checks are run by hand, because the scripts are not shipped into this repo's CI: `bash <AI-DEMO-Standalone>/scripts/check-drift.sh .`, `bash <AI-DEMO-Standalone>/scripts/check-css.sh .` and `node <demo-kit-base>/scripts/conformance.mjs . --new`. Conformance warns on rule 18 on purpose: the deferred SE k8s manifests.
 
-On Node 26: 299 tests pass (210 server, 64 web, 25 scripts).
+On Node 26: 339 tests pass (238 server, 76 web, 25 scripts).
+
+**Mutation checks.** The editable thresholds and the masking rules are pinned by tests written against literal numbers (N accepted, N+1 refused): the notAfter second, the 86400 lifetime cap, the 4096 token cap on both verifiers, the 31,536,000 second mint offset, the 160 character claim, the 24 and 32 character blobs, the 400 character free-text cap, the 10 character bearer value, the 3 character assignment value (and 6 with a digit for the loose forms), the 64 character user name in `user:pw@host`, the JWK kid (60), modulus (700) and `oth` member, and the workspace store's 500 visitors and 60 idle minutes. Mutants of each were run by hand, one edit at a time, against the full suite.
+
+**Known equivalent mutants** (the edit cannot change any answer):
+- `refreshKeyset` in `engine.js`: replacing `c.keys = r.keys...` by `c.keys = r.ok ? r.keys... : []` sits in the branch where `r.ok` is already true.
+- The `\b` in front of the first `Bearer|Basic` detector in `credentials.js`: the second (glued-value) detector already matches the keyword after any token character, so dropping `\b` masks exactly the same text (`pallbearer Josephine123` is masked either way).
+- `pass(?![a-z])` written as `pass` in the separator form: the pattern needs a separator right after the word, so a following letter can never match.
 
 ## Troubleshooting
 

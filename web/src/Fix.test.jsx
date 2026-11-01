@@ -71,22 +71,26 @@ describe("one token cap for the browser and the server (S4)", () => {
     expect(compareResults(r, b).kind).toBe("agree");
   });
 
-  it("4096 characters is within the cap on both sides: the browser goes on to check (and says something other than 'longer than 4096')", async () => {
+  it("exactly 4096 characters is within the cap on both sides (the browser checks it), 4097 is refused", async () => {
     const e = new Engine(C);
     const issuers = e.snapshot().issuers; const getJwks = async (id) => ({ ok: true, keys: e.jwksOf(id).keys });
     const h = b64(HDR);
-    for (let pad = 0; pad < 6000; pad++) {
-      const p = b64(payload(e, { pad: "x".repeat(pad) }));
-      const t = `${h}.${p}.${b64(crypto.sign("RSA-SHA256", Buffer.from(`${h}.${p}`), keyAt(ISSUER.kube.slot * 6).privateKey))}`;
-      if (t.length < 4000 || t.length > 4096) continue;
-      expect(t.length).toBeLessThanOrEqual(4096);
-      expect((await verifyInBrowser(t, { issuers, vertical: "finance", getJwks })).status).toBe("ok");
-      expect(e.verify({ token: t, identityId: "fid-001", service: "mcp" }).code).not.toBe("malformed_token");
-      const over = `${t}${"A".repeat(4097 - t.length)}`;
-      expect((await verifyInBrowser(over, { issuers, vertical: "finance", getJwks })).reason).toMatch(/longer than 4096/);
-      return;
-    }
-    throw new Error("no token between 4000 and 4096 characters was built");
+    const sigLen = b64(Buffer.alloc(256)).length; // an RSA-2048 signature is always 256 bytes
+    const exact = (n) => {
+      for (let pad = 0; pad < 6000; pad++) for (let extra = 0; extra < 4; extra++) {
+        const p = b64(payload(e, { pad: "x".repeat(pad), z: "y".repeat(extra) }));
+        if (h.length + 1 + p.length + 1 + sigLen !== n) continue;
+        return `${h}.${p}.${b64(crypto.sign("RSA-SHA256", Buffer.from(`${h}.${p}`), keyAt(ISSUER.kube.slot * 6).privateKey))}`;
+      }
+      throw new Error(`no token of ${n} characters`);
+    };
+    const at = exact(4096); const over = exact(4097);
+    expect(at.length).toBe(4096); expect(over.length).toBe(4097);
+    expect((await verifyInBrowser(at, { issuers, vertical: "finance", getJwks })).status).toBe("ok");
+    expect(e.verify({ token: at, identityId: "fid-001", service: "mcp" }).code).not.toBe("malformed_token");
+    const b = await verifyInBrowser(over, { issuers, vertical: "finance", getJwks });
+    expect(b.status).toBe("refused"); expect(b.reason).toMatch(/longer than 4096/);
+    expect(e.verify({ token: over, identityId: "fid-001", service: "mcp" }).code).toBe("malformed_token");
   });
 
   it("the Verify page counts the token's characters, says when it is over the limit, cuts nothing, and the browser check and the gateway agree on the long token", async () => {
