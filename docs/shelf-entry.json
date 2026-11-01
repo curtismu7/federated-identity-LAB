@@ -4,7 +4,7 @@
       "id": "federated-identity-lab",
       "name": "Federated Identity LAB",
       "kind": "Demo",
-      "description": "Federated Identity (platform-issued short-lived tokens, exact issuer, subject and audience binding, enforced lifetimes, key-set refresh, a key owned by an identity, revocation) and Self-Hosted Agents (a Kubernetes sensor verified from its token, enforcement modes): a simulation of the 2026-11-02 Ping release claims with real local RS256 verification. Mock tables, or a Live local engine. Every product claim is UNVERIFIED on our tenant.",
+      "description": "Simulates the 2026-11-02 Ping release claims for Federated Identity (short-lived tokens, issuer, subject and audience binding, lifetimes, key refresh, revocation) and Self-Hosted Agents, with real local RS256 verification. Mock tables or a Live local engine. Every product claim is UNVERIFIED.",
       "url": "http://localhost:7400",
       "healthPath": "/api/health",
       "composeFile": "federated-identity-LAB/docker-compose.yml",
