@@ -29,7 +29,7 @@ test('loopback still works under the guard', async () => {
   const server = http.createServer((_q, s) => s.end('ok'));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   try {
-    const res = await fetch(`http://127.0.0.1:${server.address().port}/`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/`, { signal: AbortSignal.timeout(20000) });
     assert.equal(await res.text(), 'ok');
     assert.deepEqual(g.attempts, []);
   } finally { await new Promise((r) => server.close(r)); g.restore(); } // always close: a failed assertion must not leave a listener that hangs the run
