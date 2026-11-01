@@ -6,7 +6,11 @@ import { workspaceFetch } from "./workspace";
 
 const B64U = /^[A-Za-z0-9_-]*$/;
 const bytes = (s) => { const p = s.replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(p + "=".repeat((4 - (p.length % 4)) % 4)); return Uint8Array.from(bin, (c) => c.charCodeAt(0)); };
-const json = (s) => { try { const v = JSON.parse(new TextDecoder().decode(bytes(s))); return v !== null && typeof v === "object" && !Array.isArray(v) ? v : null; } catch { return null; } };
+const reencode = (u8) => { let bin = ""; u8.forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+// Strict, exactly like the server's parser: canonical base64url (decode then re-encode must give the same text), UTF-8 that is valid, a byte-order mark kept (so JSON.parse refuses it), nothing trimmed.
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const canonical = (s) => { try { return reencode(bytes(s)) === s; } catch { return false; } };
+const json = (s) => { try { const v = JSON.parse(UTF8.decode(bytes(s))); return v !== null && typeof v === "object" && !Array.isArray(v) ? v : null; } catch { return null; } };
 const result = (status, reason, extra = {}) => ({ status, reason, ...extra });
 
 // One fetch of the issuer's current public key set: { ok: true, keys } or { ok: false, status }. Same origin only, never cached.
@@ -22,11 +26,13 @@ export async function fetchJwks(issuerId, vertical) {
 // status: ok (the signature verifies) | bad (it does not) | no-key (no key to check it against) | refused (the token cannot be checked: malformed, or not RS256) | unavailable (the check could not run)
 export async function verifyInBrowser(token, { issuers, vertical, getJwks = fetchJwks, subtle = globalThis.crypto?.subtle } = {}) {
   try {
-    if (typeof token !== "string" || !token.trim()) return result("refused", "There is no token to check.");
-    const parts = token.trim().split(".");
-    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts.every((p) => B64U.test(p))) return result("refused", "Malformed token: a JWT has exactly three base64url parts.");
+    if (typeof token !== "string" || token === "") return result("refused", "There is no token to check.");
+    const parts = token.split(".");
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts.every((p) => B64U.test(p))) return result("refused", "Malformed token: a JWT has exactly three base64url parts (the browser trims nothing, like the server).");
+    if (!parts.every(canonical)) return result("refused", "Malformed token: a part is not canonical base64url (several texts can decode to the same bytes, so the lab accepts only one).");
     const header = json(parts[0]); const claims = json(parts[1]);
-    if (!header || !claims) return result("refused", "Malformed token: the header and payload must be JSON objects.");
+    if (!header || !claims) return result("refused", "Malformed token: the header and payload must be UTF-8 JSON objects (a byte-order mark or invalid UTF-8 is refused).");
+    if (Object.hasOwn(header, "crit")) return result("refused", "The header has a crit parameter naming extensions this check does not understand: RFC 7515 says such a token is rejected.");
     if (header.alg !== "RS256") {
       const alg = typeof header.alg === "string" ? header.alg : "(none given)";
       return result("refused", header.alg === undefined || String(header.alg).toLowerCase() === "none" ? "alg none or missing: an unsigned token has no signature to check." : /^hs/i.test(alg) ? `${visible(alg.slice(0, 12))} is a shared-secret algorithm: there is no public key to check it with.` : `${visible(alg.slice(0, 12))} is not RS256: this check verifies RS256 only.`);
@@ -47,7 +53,8 @@ export async function verifyInBrowser(token, { issuers, vertical, getJwks = fetc
   }
 }
 
-// Compare the browser's signature result with what the server's fifteen steps said about the signature. Only the signature is comparable.
+// Compare the browser's signature result with what the server's fifteen steps said about the signature. Only the signature is comparable. When they differ the text says
+// WHY: a parse-stage difference, a key lookup difference (cache against the published set now), or a retired key.
 export function compareResults(server, browser) {
   if (!browser) return { kind: "none", text: "" };
   if (!server || !Array.isArray(server.steps)) return { kind: "none", text: "Run Verify to compare this with the server's verdict." };
@@ -56,10 +63,13 @@ export function compareResults(server, browser) {
   const stop = server.steps.find((s) => s.status === "fail");
   const serverSig = sig?.status === "pass" ? "ok" : sig?.status === "fail" ? "bad" : "not-reached";
   const say = (kind, text) => ({ kind, text });
-  if (serverSig === "ok") return browser.status === "ok" ? say("agree", "Both checked the signature and it verifies.") : say("disagree", `The server's signature step passed, but the browser says ${browser.status === "no-key" ? "there is no key" : browser.status}. The gateway checks against the key set it holds (possibly cached), the browser against the issuer's published set now.`);
-  if (serverSig === "bad") return browser.status === "bad" ? say("agree", "Both found the signature invalid.") : say("disagree", `The server found the signature invalid, but the browser says ${browser.status === "no-key" ? "there is no key" : browser.status}.`);
+  const bs = browser.status === "no-key" ? "there is no key" : browser.status;
+  if (serverSig === "ok") return browser.status === "ok" ? say("agree", "Both checked the signature and it verifies.") : say("disagree", `Key lookup difference: the server's signature step passed (against the key set the gateway holds, which may be cached), but the browser says ${bs} against the key set the issuer publishes now. A retired or rotated key looks like this.`);
+  if (serverSig === "bad") return browser.status === "bad" ? say("agree", "Both found the signature invalid.") : say("disagree", `The server found the signature invalid, but the browser says ${bs}: the two looked at different keys or the browser could not find one.`);
   const early = ["parse", "alg", "keyset"].includes(stop?.id);
   if (!early) return say("not-comparable", `The server stopped at the ${stop?.id || "an earlier"} step, before the signature, so only the browser looked at it.`);
-  if (browser.status === "refused" || browser.status === "no-key") return say("agree", `Neither could check a signature: the server stopped at the ${stop.id} step and the browser says ${browser.status}.`);
-  return say("disagree", `The server stopped at the ${stop.id} step without checking a signature, but the browser found a key and says ${browser.status}.`);
+  if (browser.status === "refused" || browser.status === "no-key") return say("agree", `Neither could check a signature: the server stopped at the ${stop.id} step (${server.code}) and the browser says ${browser.status}.`);
+  if (stop.id === "parse") return say("disagree", `Parse-stage difference: the server refused the token while parsing it (${server.code}), but the browser parsed it and says ${browser.status}. The two parsers are meant to be identical, so this is a defect to report.`);
+  if (stop.id === "alg") return say("disagree", `Algorithm-stage difference: the server refused the algorithm (${server.code}) but the browser went on to check a signature and says ${browser.status}.`);
+  return say("disagree", `Key lookup difference: the gateway could not find the key (${server.code}${server.refresh?.attempted === false ? ", its refresh was cooled down" : server.refresh?.ok === false ? ", its refresh failed" : ""}) but the issuer publishes it now, and the browser says ${browser.status}.`);
 }

@@ -70,13 +70,13 @@ test('the lab ships no k8s manifests (deferred by the owner, 2026-10-31)', () =>
 
 test('README sections follow the standard order and state the limits, the measured nuance, the naming and the lab readings; conformance is said to be run by hand', () => {
   const r = read('README.md');
-  for (const limit of ['12 identities', '20 keys', '5 sensors', '200 findings', '500 audit entries', '180 minutes per move', '10080', '40 hops', '160 characters', '4096 characters']) assert.ok(r.includes(limit), `the README states the limit: ${limit}`);
+  for (const limit of ['12 identities', '20 keys', '5 sensors', '200 findings', '300 changes, 300 allowed requests and 200 refusals', '180 minutes per move', '10080', '40 hops', '160 characters', '4096 characters']) assert.ok(r.includes(limit), `the README states the limit: ${limit}`);
   const at = (h) => r.indexOf(`\n## ${h}`);
   const order = ['What is simulated', 'Run from a clone', 'Settings file', 'Ports, and what to do', 'Mock and live modes', 'Health, doctor and reset', 'Docker', 'Tests', 'Troubleshooting', 'Ownership', 'Not done'].map(at);
   assert.ok(order.every((i) => i > 0), order.join());
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'sections are in order');
   assert.match(r, /### Known limits of the model/); assert.match(r, /lab-invented/i); assert.match(r, /run by hand/);
-  assert.match(r, /did not prove it/); assert.match(r, /measured, our note, 2026-10-21/); assert.match(r, /Slide 57/); assert.match(r, /\/v1\/nonhumanidentities/); assert.match(r, /token-pass/); assert.match(r, /in development/); assert.match(r, /RS256 only/); assert.match(r, /UNVERIFIED on our tenant/);
+  assert.match(r, /did not prove it/); assert.match(r, /signs exactly what you type/); assert.match(r, /cooldown/); assert.match(r, /single-use|No single-use/); assert.match(r, /ambiguous_identity/); assert.match(r, /Shared lab keys/); assert.match(r, /crit/); assert.match(r, /measured, our note, 2026-10-21/); assert.match(r, /Slide 57/); assert.match(r, /\/v1\/nonhumanidentities/); assert.match(r, /token-pass/); assert.match(r, /in development/); assert.match(r, /RS256 only/); assert.match(r, /UNVERIFIED on our tenant/);
   assert.match(r, /util\.parseEnv/);
 });
 

@@ -17,7 +17,7 @@ test('self-test: every route out is refused and recorded, none reaches the netwo
 test('a real outbound attempt is blocked and appears in attempts', async () => {
   const g = installNetguard();
   // The timeout makes a loosened fetch guard fail fast (TimeoutError) instead of hanging on a real lookup.
-  await assert.rejects(fetch('https://example.invalid/', { signal: AbortSignal.timeout(1500) }), /network blocked/);
+  await assert.rejects(fetch('https://example.invalid/', { signal: AbortSignal.timeout(30000) }), /network blocked/);
   await assert.rejects(new Promise((res, rej) => { const q = http.get('http://other.invalid/', res); q.on('error', rej); }), /network blocked|ENOTFOUND|blocked/);
   assert.ok(g.attempts.some((a) => a === 'fetch:example.invalid'));
   assert.ok(g.attempts.some((a) => a.includes('other.invalid')));

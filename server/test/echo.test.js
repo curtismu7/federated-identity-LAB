@@ -84,10 +84,10 @@ test('a credential in a real, accepted action is masked in the response, the hop
   await withServer(async (url) => {
     for (const [name, n] of Object.entries(NEEDLES)) {
       const W = { 'x-workspace': `echo-${name.toLowerCase()}`.slice(0, 30).replace(/[^a-z0-9-]/g, '-') };
-      const m = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: `x ${n.raw}`, note: n.raw } } } }), W);
+      const refused = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: `x ${n.raw}`, note: n.raw } } } }), W); const rt = await refused.text();
+      assert.equal(refused.status, 400, `${name}: a credential typed as a claim is refused, not signed`); assert.ok(!rt.includes(n.probe), `${name}: not in the refusal`); assert.match(rt, /credential_shaped/);
+      const m = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: 'p-0' } } } }), W);
       const mb = await m.json(); assert.equal(m.status, 200);
-      assert.ok(!JSON.stringify({ ...mb.result, mintedToken: undefined, hops: mb.hops, state: mb.state }).includes(n.probe), `${name}: not in the mint answer`);
-      assert.ok(!Buffer.from(mb.result.mintedToken.split('.')[1], 'base64url').toString().includes(n.probe), `${name}: not inside the minted token`);
       const v = await post(url, '/api/verify', live({ verify: { token: mb.result.mintedToken, identityId: 'fid-001', service: 'mcp' } }), W); const t = await v.text();
       assert.equal(v.status, 200); assert.ok(!t.includes(n.probe), `${name}: not in the verify answer`); assert.ok(t.includes('"audit"') && t.includes('"hops"'));
       const ident = await post(url, '/api/identities', live({ identity: { name: `n ${n.raw}`, description: n.raw, scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW } } }), W);
@@ -105,5 +105,39 @@ test('field names are not echoed either: an unknown key that is itself a credent
       }
       const r = await post(url, '/api/clock', live({ clock: { minutes: 1 }, [n.raw]: 1 })); assert.ok(!(await r.text()).includes(n.probe));
     }
+  });
+});
+
+test('a credential-shaped KEY at every depth of every endpoint body (plain, once- and twice-encoded) never comes back, in any answer or in the state afterwards', async () => {
+  const pct = (t) => [...Buffer.from(t)].map((b) => `%${b.toString(16).padStart(2, '0')}`).join('');
+  const fedBase = { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW };
+  const templates = [
+    ['POST', '/api/tokens/mint', { mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: 'p' } }, times: { iat: 0, exp: 3600 } } }],
+    ['POST', '/api/verify', { verify: { token: 'a.b.c', service: 'mcp' } }], ['POST', '/api/clock', { clock: { minutes: 1 } }], ['POST', '/api/issuers/kube/actions', { action: { action: 'rotate' } }],
+    ['POST', '/api/identities', { identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { ...fedBase, requiredClaims: { a: 'b' } } } }],
+    ['PUT', '/api/identities/fid-002', { identity: { federation: { requiredClaims: { repository: 'x' } } } }], ['POST', '/api/keys', { key: { name: 'k', owner: { kind: 'identity', ref: 'fid-001' }, scopes: ['mcp'] } }],
+    ['PUT', '/api/keys/key-0001', { key: { enabled: true, scopes: ['mcp'] } }], ['PUT', `/api/people/${C.castOwner}`, { person: { active: true } }], ['POST', '/api/sensors', { sensor: { name: 's' } }],
+    ['PUT', '/api/sensors/fid-006/policy', { policy: { mode: 'audit', scope: { namespaces: [C.castNs] }, actions: { 'ai-agent': 'allow', 'mcp-server': 'warn', 'model-server': 'deny' } } }],
+    ['POST', '/api/sensors/fid-006/reports', { report: { node: C.castNode1, body: { findings: [{ kind: 'ai-agent', name: 'a', namespace: C.castNs, pod: 'p-0' }] } } }],
+  ];
+  // every object node of a body, as a path of keys; a variant is the body with one extra secret-shaped key at that node
+  const nodes = (o, path = []) => (o !== null && typeof o === 'object' && !Array.isArray(o) ? [path, ...Object.keys(o).flatMap((k) => nodes(o[k], [...path, k]))] : o !== null && typeof o === 'object' ? o.flatMap((x, i) => nodes(x, [...path, i])) : []);
+  const inject = (body, path, key) => { const c = JSON.parse(JSON.stringify(body)); let at = c; for (const p of path) at = at[p]; at[key] = 'x'; return c; };
+  await withServer(async (url) => {
+    await post(url, '/api/sensors', live({ sensor: { name: 'real' } }));
+    let sent = 0;
+    for (const [name, n] of Object.entries(NEEDLES)) {
+      for (const typed of [n.raw, pct(n.raw), pct(pct(n.raw))]) {
+        const texts = [];
+        for (const [m, p, tpl] of templates) for (const path of nodes(tpl)) {
+          const r = await (m === 'PUT' ? put : post)(url, p, live(inject(tpl, path, typed))); texts.push(await r.text()); sent++;
+        }
+        const r = await post(url, '/api/clock', live({ clock: { minutes: 1 }, [typed]: 1 })); texts.push(await r.text());
+        texts.push(JSON.stringify(await (await get(url, '/api/state?mode=live')).json()));
+        const all = texts.join('\n');
+        for (const probe of [n.probe, pct(n.probe), pct(pct(n.probe))]) assert.ok(!all.includes(probe), `${name}: a key shaped like this never comes back (${probe.slice(0, 12)})`);
+      }
+    }
+    assert.ok(sent > 1000, `${sent} requests`);
   });
 });

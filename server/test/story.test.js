@@ -67,7 +67,7 @@ test('"Why it matters" has challenge, technical and business for both features, 
 });
 
 test('presets: every preset names a seeded identity, a service and an expectation; every scope string the lab uses is one the lab lists', () => {
-  assert.equal(PRESETS.length, 27); assert.equal(new Set(PRESETS.map((p) => p.id)).size, 27);
+  assert.equal(PRESETS.length, 35); assert.equal(new Set(PRESETS.map((p) => p.id)).size, 35);
   for (const p of PRESETS) { assert.match(p.identityId, /^fid-00[1-5]$/); assert.ok(['mcp', 'a2a', 'llm'].includes(p.service)); assert.ok(p.expect.length > 1); assert.ok(p.title.length > 8); }
   assert.deepEqual(SCOPES, ['mcp', 'a2a', 'llm', 'shadowai:write', 'policy:read']);
 });

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 
 export const MAX_TOKEN = 4096;
 const B64U = /^[A-Za-z0-9_-]*$/;
+const UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 export const b64u = (bytes) => Buffer.from(bytes).toString('base64url');
@@ -25,8 +26,11 @@ export function parseToken(text) {
   if (parts.length !== 3) return bad('a JWT has exactly three dot-separated parts');
   const [h, p, s] = parts;
   if (!h || !p || !B64U.test(h) || !B64U.test(p) || !B64U.test(s)) return bad('the parts are not base64url');
+  // Strict, like the browser's parser: base64url must be canonical (decoding then re-encoding gives the same text, so a signature cannot be altered in its unused
+  // bits), the bytes must be valid UTF-8 and a leading byte-order mark is kept (so JSON parsing refuses it), and nothing is trimmed.
+  if (b64u(fromB64u(h)) !== h || b64u(fromB64u(p)) !== p || b64u(fromB64u(s)) !== s) return bad('a part is not canonical base64url');
   let header; let payload;
-  try { header = JSON.parse(fromB64u(h).toString('utf8')); payload = JSON.parse(fromB64u(p).toString('utf8')); } catch { return bad('the header or payload is not JSON'); }
+  try { header = JSON.parse(UTF8.decode(fromB64u(h))); payload = JSON.parse(UTF8.decode(fromB64u(p))); } catch { return bad('the header or payload is not UTF-8 JSON'); }
   if (!isObj(header) || !isObj(payload)) return bad('the header and payload must be JSON objects');
   return { ok: true, header, payload, input: `${h}.${p}`, signature: s };
 }

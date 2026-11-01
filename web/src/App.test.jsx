@@ -157,7 +157,7 @@ describe("Verify: Mock scenarios, read-only", () => {
   it("shows a scripted scenario with its steps; the fork-PR scenario ends in subject_mismatch and shows all fifteen steps", async () => {
     await mount(); await tab("Verify");
     expect(await screen.findByTestId("scenarios", {}, T)).toBeInTheDocument();
-    expect((await within(screen.getByTestId("scenarios")).findAllByRole("option")).length).toBe(13);
+    expect((await within(screen.getByTestId("scenarios")).findAllByRole("option")).length).toBe(14);
     expect(screen.queryByTestId("editor")).toBeNull();
     await pick("scenario-pick", "fork-pr");
     await waitFor(() => expect(screen.getByTestId("scenario-say")).toHaveTextContent(/pull request/), T);
@@ -272,6 +272,7 @@ describe("Issuers and keys", () => {
     expect(await verifyPreset("k8s-right")).toBe("unknown_kid");
     expect(screen.getByTestId("refresh-note")).toHaveTextContent(/did not answer, the last known good set was kept/);
     await tab("Issuers and keys"); await click("up-kube"); await waitFor(() => expect(screen.getByTestId("down-kube")).toBeInTheDocument(), T);
+    await click("advance-1"); await waitFor(() => expect(screen.getByTestId("clock-now")).toHaveTextContent(/09:01:00 UTC/), T); // the unknown-kid refresh cooldown is one lab minute
     expect(await verifyPreset("k8s-right")).toBe("allowed");
   });
 
@@ -313,7 +314,7 @@ describe("revocation and audit", () => {
     expect(rows.some((r) => /verify/.test(r) && /refused/.test(r) && /identity_disabled/.test(r))).toBe(true);
     expect(rows.some((r) => /identity\.revoked/.test(r))).toBe(true);
     await pick("audit-outcome", "refused"); expect(screen.getAllByTestId("audit-row").every((r) => /refused/.test(r.textContent))).toBe(true);
-    expect(screen.getByTestId("audit-count")).toHaveTextContent(/kept \(a ring of 500; 0 older entries were dropped\)/);
+    expect(screen.getByTestId("audit-count")).toHaveTextContent(/three rings/); expect(screen.getByTestId("audit-count")).toHaveTextContent(/0 changes, 0 allowed requests, 0 refusals dropped so far/);
   });
 });
 
@@ -460,14 +461,17 @@ describe("hostile text is shown inert and credentials are masked", () => {
     expect(visible("<img src=x onerror=alert(1)>")).toBe("<img src=x onerror=alert(1)>");
   });
 
-  it("a credential typed as a claim is masked in the token, the answer, the audit log and everywhere on the page; markup in a claim stays text", async () => {
+  it("a credential typed as a claim is REFUSED (never signed, never shown); markup in an ordinary claim is signed as typed and shown as text", async () => {
     await mount(); await live(); await tab("Verify");
     await waitFor(() => expect(screen.getByTestId("mint")).toBeEnabled(), T);
     const secret = ["gh", "p_", "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"].join("");
-    setValue("f-sub", `<img src=x onerror=alert(1)> ${secret}`); setValue("f-extra", `note=my password is hunter2hunter2\ntoken=${secret}`);
+    setValue("f-sub", `x ${secret}`); setValue("f-extra", `note=my password is hunter2hunter2`);
+    await click("mint"); await waitFor(() => expect(screen.getByTestId("mint-error")).toHaveTextContent(/credential_shaped/), T);
+    expect(screen.getByTestId("token").value).toBe("");
+    setValue("f-sub", "<img src=x onerror=alert(1)> plain"); setValue("f-extra", "pod=p-0");
     await click("mint"); await waitFor(() => expect(screen.getByTestId("token").value).toMatch(/^eyJ/), T);
+    expect(decodeToken(screen.getByTestId("token").value).payload.sub).toBe("<img src=x onerror=alert(1)> plain");
     await click("verify"); await waitFor(() => expect(screen.getByTestId("verdict")).toBeInTheDocument(), T);
-    expect(JSON.stringify(decodeToken(screen.getByTestId("token").value).payload)).not.toContain(secret);
     await tab("Audit");
     const text = wholePageText();
     expect(text).not.toContain(secret); expect(text).not.toContain("hunter2hunter2");

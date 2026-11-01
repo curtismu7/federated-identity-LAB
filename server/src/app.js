@@ -33,7 +33,7 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
   // Only UTF-8 bodies are read: any other declared charset is refused before a parser can decode it.
   api.use((req, res, next) => {
     const m = /charset\s*=\s*"?([^;"\s]+)/i.exec(String(req.headers['content-type'] || ''));
-    if (m && !/^utf-?8$/i.test(m[1])) return res.status(415).json({ error: 'unsupported_charset' });
+    if (m && !/^utf-8$/i.test(m[1])) return res.status(415).json({ error: 'unsupported_charset' });
     return next();
   });
   api.use(express.json({ limit: '32kb' }));
@@ -117,6 +117,7 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     const status = Number(err?.status || err?.statusCode);
     if (err instanceof InputError) return res.status(err.status).json({ error: err.code });
     if (status === 413) return res.status(413).json({ error: 'payload_too_large' });
+    if (status === 415) return res.status(415).json({ error: 'unsupported_charset' });
     if (status >= 400 && status < 500) return res.status(status).json({ error: 'bad_request' });
     return res.status(500).json({ error: 'internal_error' });
   });

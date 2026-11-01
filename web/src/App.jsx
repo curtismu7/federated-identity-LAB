@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import IdentitiesTab from "./components/IdentitiesTab";
 import VerifyTab from "./components/VerifyTab";
 import IssuersTab from "./components/IssuersTab";
@@ -31,6 +31,8 @@ const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
 const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };
 const savedMode = () => { try { const m = window.localStorage.getItem(MODE_KEY); return m === "live" || m === "mock" ? m : null; } catch { return null; } };
 
+let CONTEXT_COUNTER = 0;
+
 export default function App() {
   const [vertical, setVertical] = useState("finance");
   const [story, setStory] = useState(null);
@@ -45,6 +47,8 @@ export default function App() {
   const [verifyUi, setVerifyUi] = useState(null);
   const tabsRef = useRef(null);
   const lab = useLab({ mode, vertical, scenario: scenarioId });
+  // One number per (vertical, mode) choice, new on every change (even back to an earlier choice): work started under one choice can never land in a later one.
+  const ctxGen = useMemo(() => ++CONTEXT_COUNTER, [vertical, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { getJson("/api/info").then((i) => setModeState((m) => m || savedMode() || i.mode), () => setModeState((m) => m || savedMode() || "mock")); }, []);
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function App() {
     getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [vertical]);
-  useEffect(() => { setVerifyUi(null); }, [vertical]); // presets carry the cast, so a new vertical gives a new editor
+  useEffect(() => { setVerifyUi(null); }, [vertical, mode]); // presets carry the cast, so a new vertical (or mode) gives a new editor; answers still in flight are dropped by their context tag
   useEffect(() => {
     const on = () => setTab(tabFromHash());
     window.addEventListener("hashchange", on);
@@ -150,7 +154,7 @@ export default function App() {
               {!settled && tab !== "diagram" && tab !== "talk" ? <p className="muted" data-testid="settling">Loading...</p> : (
                 <ErrorBoundary key={`${vertical}|${mode}|${tab}`}>
                   {tab === "identities" && <IdentitiesTab key={`${vertical}|${mode}`} {...props} />}
-                  {tab === "verify" && <VerifyTab key={`${vertical}|${mode}`} {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} ui={verifyUi} setUi={setVerifyUi} />}
+                  {tab === "verify" && <VerifyTab key={`${vertical}|${mode}`} {...props} scenarioId={scenarioId} setScenarioId={setScenarioId} pending={pending} ui={verifyUi} setUi={setVerifyUi} ctxGen={ctxGen} />}
                   {tab === "issuers" && <IssuersTab key={`${vertical}|${mode}`} {...props} />}
                   {tab === "models" && <ModelsTab key={`${vertical}|${mode}`} {...props} tryPreset={tryPreset} />}
                   {tab === "sensors" && <SensorsTab key={`${vertical}|${mode}`} {...props} />}

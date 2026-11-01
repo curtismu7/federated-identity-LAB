@@ -15,7 +15,7 @@ test('an unknown signing key triggers a refresh, and then the token verifies (th
   assert.match(r.steps.find((s) => s.id === 'keyset').detail, /refreshed on sight of the unknown kid/);
   assert.deepEqual(snapId(e, 'fid-001').keyset.kids, ['kube-key-2']);
   assert.equal(k8sVerify(e).refresh, null, 'the second token finds its key: no refresh');
-  assert.ok(e.snapshot().audit.some((a) => a.kind === 'jwks.refresh' && /unknown kid/.test(a.note)));
+  assert.ok(e.snapshot().audit.some((a) => a.kind === 'verify' && /unknown kid: the key set was refreshed \(ok\)/.test(a.note || '')), 'one verify entry records the refresh; there is no second entry');
 });
 
 test('a token signed by a retired key is refused after the refresh: the key is no longer published', () => {
@@ -25,7 +25,10 @@ test('a token signed by a retired key is refused after the refresh: the key is n
   assert.ok(e.verify({ token: old, identityId: 'fid-001', service: 'mcp' }).ok, 'until the gateway refreshes, its cached set still holds the old key');
   assert.ok(k8sVerify(e).ok, 'a token with the new key triggers the refresh');
   const r = e.verify({ token: old, identityId: 'fid-001', service: 'mcp' });
-  assert.equal(r.code, 'unknown_kid'); assert.equal(r.refresh.attempted, true);
+  assert.equal(r.code, 'unknown_kid'); assert.equal(r.refresh.attempted, false); assert.equal(r.refresh.cooledDown, true, 'the refresh a lab second ago is within the cooldown');
+  e.advance({ minutes: 1 });
+  const r2 = e.verify({ token: old, identityId: 'fid-001', service: 'mcp' });
+  assert.equal(r2.code, 'unknown_kid'); assert.equal(r2.refresh.attempted, true, 'after the cooldown the gateway refreshes again and still does not find the retired key');
 });
 
 test('retireOld false keeps the old key published beside the new one: both verify', () => {
@@ -49,6 +52,8 @@ test('issuer outage: a key the gateway already holds keeps working (last known g
   assert.deepEqual(snapId(e, 'fid-001').keyset.kids, ['kube-key-1'], 'the last known good set is kept');
   assert.ok(v().ok, 'the old key still verifies');
   e.issuerAction({ issuer: 'kube', action: 'up' });
+  assert.equal(v(fresh).code, 'unknown_kid', 'within the cooldown the gateway does not try again');
+  e.advance({ minutes: 1 });
   assert.ok(v(fresh).ok); assert.deepEqual(snapId(e, 'fid-001').keyset.kids, ['kube-key-2']);
 });
 

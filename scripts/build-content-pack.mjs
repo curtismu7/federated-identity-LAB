@@ -15,7 +15,7 @@ export function buildPack() {
   const story = buildStory(DEFAULT_CAST, 'finance');
   const sid = (n) => `S${String(n).padStart(2, '0')}`;
   const terms = {
-    'one-credential': ['federated-identity', 'key-owned'], 'exact-binding': ['exact-binding'], 'fork-pr': ['exact-binding', 'pinned-claims'], lifetimes: ['enforced-lifetimes'], algorithms: ['enforced-lifetimes'],
+    'one-credential': ['federated-identity', 'key-owned'], 'exact-binding': ['exact-binding'], lookalikes: ['exact-binding', 'pinned-claims'], 'fork-pr': ['exact-binding', 'pinned-claims'], lifetimes: ['enforced-lifetimes'], algorithms: ['enforced-lifetimes'],
     'keyset-refresh': ['key-set'], 'issuer-outage': ['key-set'], 'private-pinned': ['key-set'], revocation: ['federated-identity', 'attribution'], 'key-owner': ['key-owned'], platforms: ['deployment-models'], sensor: ['self-hosted-agents', 'node-from-claims'], enforcement: ['enforcement-policy'],
   };
   const why = (id) => story.talkTrack.find((t) => t.id === id).say;

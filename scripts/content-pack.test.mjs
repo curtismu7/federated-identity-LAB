@@ -14,7 +14,7 @@ test('the pack validates against the schema and its cross-references hold, with 
 test('the committed content-pack.json is exactly what the builder makes (no drift)', () => { assert.deepEqual(committed, buildPack()); });
 test('every scripted scenario has a story and a try-it card', () => {
   const pack = buildPack();
-  assert.equal(pack.stories.length, 13);
+  assert.equal(pack.stories.length, 14);
   for (const s of pack.stories) assert.ok(pack.cards.find((c) => c.story === s.id), s.id);
 });
 test('a broken pack is caught: unknown term and unknown story', () => {

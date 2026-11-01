@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { tamperToken } from '../src/jwt.js';
 import { C, GW, K8S_SUB, api, get, json, live, post, put, rawHttp, withServer, W } from './helpers.js';
 import { installNetguard } from '../src/netguard.js';
 import { mockState } from '../src/service.js';
@@ -17,7 +18,7 @@ test('health, info and story answer; the story fills every token for every verti
     for (const v of ['finance', 'health', 'retail']) {
       const s = await json(await get(url, `/api/story?vertical=${v}`));
       assert.ok(!/\{\{/.test(JSON.stringify(s)), v);
-      assert.equal(s.vertical, v); assert.equal(s.steps.length, 15); assert.equal(s.deploymentModels.length, 5); assert.equal(s.presets.length, 27);
+      assert.equal(s.vertical, v); assert.equal(s.steps.length, 15); assert.equal(s.deploymentModels.length, 5); assert.equal(s.presets.length, 35);
     }
     assert.equal((await json(await get(url, '/api/story?vertical=__proto__'))).vertical, 'finance');
   });
@@ -27,7 +28,7 @@ test('the state: Mock gives a generated scenario, Live gives the workspace engin
   await withServer(async (url) => {
     const m = await json(await get(url, '/api/state?mode=mock&vertical=finance&scenario=fork-pr'));
     const l = await json(await get(url, '/api/state?mode=live&vertical=finance'));
-    assert.equal(m.scenario.id, 'fork-pr'); assert.equal(m.scenarios.length, 13);
+    assert.equal(m.scenario.id, 'fork-pr'); assert.equal(m.scenarios.length, 14);
     assert.deepEqual(Object.keys(m.state).sort(), Object.keys(l.state).sort(), 'one shape for both');
     assert.equal(l.state.identities.length, 5);
     assert.equal((await json(await get(url, '/api/state?mode=mock&scenario=nope'))).scenario.id, 'one-credential');
@@ -77,7 +78,7 @@ test('a verify over HTTP: 200 allowed with the steps and the masked backend cred
     assert.ok(ok.body.hops.length >= 3 && ok.body.hops.every((h) => /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/.test(h.request.headers.traceparent)), 'a W3C traceparent on every hop');
     const llm = await api(url, 'POST', '/api/verify', { verify: { token, identityId: 'fid-001', service: 'llm' } }, 'a1');
     assert.equal(llm.status, 403); assert.equal(llm.body.error, 'scope_not_on_key'); assert.equal(llm.body.result.steps.at(-1).status, 'fail');
-    const bad = await api(url, 'POST', '/api/verify', { verify: { token: `${token}x`, identityId: 'fid-001', service: 'mcp' } }, 'a1');
+    const bad = await api(url, 'POST', '/api/verify', { verify: { token: tamperToken(token), identityId: 'fid-001', service: 'mcp' } }, 'a1');
     assert.equal(bad.status, 401); assert.equal(bad.body.error, 'bad_signature');
     assert.equal((await api(url, 'POST', '/api/verify', { verify: { token, identityId: 'nope', service: 'mcp' } }, 'a1')).status, 404);
     assert.equal((await api(url, 'POST', '/api/verify', { verify: { token, identityId: 'fid-001', service: 'xx' } }, 'a1')).status, 400);
@@ -185,7 +186,7 @@ test('only UTF-8 request bodies are read: any other declared charset is 415 befo
   await withServer(async (url) => {
     const send = (ct, body) => rawHttp(`${url}/api/clock`, { method: 'POST', headers: { 'content-type': ct, origin: url }, body });
     const ok = JSON.stringify({ mode: 'live', vertical: 'finance', clock: { minutes: 1 } });
-    for (const cs of ['utf-16', 'utf-16le', 'iso-8859-1', 'latin1', 'windows-1252', 'utf-7', 'shift_jis', 'ascii', '"utf-32"']) assert.equal((await send(`application/json; charset=${cs}`, ok)).status, 415, cs);
+    for (const cs of ['utf8', 'utf-16', 'utf-16le', 'iso-8859-1', 'latin1', 'windows-1252', 'utf-7', 'shift_jis', 'ascii', '"utf-32"']) { const r = await send(`application/json; charset=${cs}`, ok); assert.equal(r.status, 415, cs); assert.equal(JSON.parse(r.text).error, 'unsupported_charset', `${cs}: the same fixed answer whoever refused it`); }
     for (const cs of ['utf-8', 'UTF-8', '"utf-8"']) assert.equal((await send(`application/json; charset=${cs}`, ok)).status, 200, cs);
     assert.equal((await send('application/json', ok)).status, 200);
     const r = await send('application/json; charset=utf-16', ok); assert.ok(!/utf-16/.test(r.text), 'the charset is not echoed');

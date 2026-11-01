@@ -37,7 +37,7 @@ export default function AuditTab({ story, lab }) {
           <label>Outcome<select value={outcome} onChange={(e) => setOutcome(e.target.value)} data-testid="audit-outcome"><option value="all">all</option><option value="allowed">allowed</option><option value="refused">refused</option></select></label>
           <label>Kind<select value={kind} onChange={(e) => setKind(e.target.value)} data-testid="audit-kind"><option value="all">all</option>{kinds.map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
         </div>
-        <p className="muted" data-testid="audit-count">{rows.length} shown of {s.audit.length} kept (a ring of {s.limits.audit}; {s.auditDropped} older entr{s.auditDropped === 1 ? "y was" : "ies were"} dropped). Times are the lab clock (UTC).</p>
+        <p className="muted" data-testid="audit-count">{rows.length} shown of {s.audit.length} kept. The log is three rings, so noise cannot push out what matters: changes ({s.limits.auditChanges}), allowed requests ({s.limits.auditRequests}) and refusals ({s.limits.auditRefusals}). Within a ring the oldest entry is dropped and counted: {s.auditDropped.changes} change{s.auditDropped.changes === 1 ? "" : "s"}, {s.auditDropped.requests} allowed request{s.auditDropped.requests === 1 ? "" : "s"}, {s.auditDropped.refusals} refusal{s.auditDropped.refusals === 1 ? "" : "s"} dropped so far. Times are the lab clock (UTC).</p>
         <div className="scroll"><table className="tbl tbl--wide">
           <thead><tr><th>#</th><th>Lab time</th><th>Event</th><th>Outcome</th><th>Principal and deployment</th><th>Service</th><th>Note</th></tr></thead>
           <tbody>{rows.map((a) => (

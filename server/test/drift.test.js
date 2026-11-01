@@ -43,7 +43,7 @@ test('the table holds no token and no key material, only decoded claims, and eve
 test('the Mock table agrees with the engine\'s own refusals: the steps recorded are the steps run', () => {
   const t = MOCK_TABLE.verticals.finance.scenarios.find((s) => s.id === 'fork-pr');
   assert.deepEqual(t.steps.map((s) => (s.ok ? 'ok' : s.code)), EXPECTED['fork-pr']);
-  assert.equal(MOCK_TABLE.verticals.finance.scenarios.length, 13);
+  assert.equal(MOCK_TABLE.verticals.finance.scenarios.length, 14);
   const enf = MOCK_TABLE.verticals.finance.scenarios.find((s) => s.id === 'enforcement').state;
   assert.deepEqual(enf.findings.map((f) => f.effect), ['would-have-blocked', 'out-of-scope', 'warned', 'blocked', 'out-of-scope', 'warned']);
 });

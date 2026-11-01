@@ -13,12 +13,12 @@ import {
 import { GENERATIONS, keyAt } from './keys.js';
 import { b64u, jwkProblem, parseToken, signHS256, signRS256, signingInput, verifyRS256 } from './jwt.js';
 import { cleanFree, findCredentials } from './credentials.js';
-import { cleanClaims, cleanValue, show } from './clean.js';
+import { cleanClaims, credentialProblem, oddities, show } from './clean.js';
 import { formatTraceparent } from './trace.js';
 import { refuse } from './errors.js';
 
 export const LIMITS = {
-  identities: 12, keys: 20, audit: 500, findings: 200, reports: 50, sensors: 5, extraClaims: 12, claimText: 160, name: 60, description: 200, refreshLog: 20,
+  identities: 12, keys: 20, auditChanges: 300, auditRequests: 300, auditRefusals: 200, unknownKidCooldownSec: 60, findings: 200, reports: 50, sensors: 5, extraClaims: 12, claimText: 160, name: 60, description: 200, refreshLog: 20,
   hops: 40, requiredClaims: 6, scopes: 5, pinnedKeys: 4, clockPerMoveMin: 180, clockTotalMin: 10080, findingsPerReport: 10, namespaces: 5, audienceValues: 5,
 };
 export const STEPS = [
@@ -75,7 +75,7 @@ export class Engine {
       now: BASE_SECONDS, advancedMin: 0,
       seq: { audit: 0, identity: 0, key: 0, report: 0, finding: 0 },
       issuers: new Map(ISSUERS.map((i) => [i.id, { g: 0, published: [0], up: true }])),
-      identities: new Map(), keys: new Map(), humans: new Map(), audit: [], auditDropped: 0,
+      identities: new Map(), keys: new Map(), humans: new Map(), audit: { changes: [], requests: [], refusals: [] }, auditDropped: { changes: 0, requests: 0, refusals: 0 },
       findings: [], reports: [], policies: new Map(), sensors: new Map(),
     };
   }
@@ -101,8 +101,12 @@ export class Engine {
   }
   audit(kind, data = {}) {
     const s = this.s; const a = { n: ++s.seq.audit, at: iso(s.now), kind, ...data };
-    s.audit.push(a);
-    if (s.audit.length > LIMITS.audit) { s.audit.shift(); s.auditDropped += 1; } // a ring: the oldest entry is dropped and counted, and the page says so
+    // Three rings, so noise cannot push out what matters: refusals (cheap for a caller to produce) never evict a change or an allowed request, and allowed requests never
+    // evict a change (an identity created, revoked, a key rotated). Within a ring the oldest entry is dropped and counted, and the page says so.
+    const ring = data.outcome === 'refused' ? 'refusals' : data.outcome === 'allowed' ? 'requests' : 'changes';
+    const cap = ring === 'refusals' ? LIMITS.auditRefusals : ring === 'requests' ? LIMITS.auditRequests : LIMITS.auditChanges;
+    s.audit[ring].push(a);
+    if (s.audit[ring].length > cap) { s.audit[ring].shift(); s.auditDropped[ring] += 1; }
     return a;
   }
   identity(id) { return typeof id === 'string' && this.s.identities.has(id) ? this.s.identities.get(id) : null; }
@@ -241,7 +245,7 @@ export class Engine {
     const rc = f.requiredClaims === undefined ? {} : f.requiredClaims;
     need(isObj(rc) && Object.keys(rc).length <= LIMITS.requiredClaims, 'bad_claims', `requiredClaims is an object of at most ${LIMITS.requiredClaims} claims`);
     out.requiredClaims = Object.fromEntries(Object.keys(rc).map((name) => {
-      need(CLAIM_NAME.test(name) && !RESERVED_CLAIMS.has(name), 'bad_claims', 'a pinned claim name is short and plain, and is not one of iss, sub, aud, exp, iat or nbf');
+      need(CLAIM_NAME.test(name) && !RESERVED_CLAIMS.has(name) && !credentialProblem(name), 'bad_claims', 'a pinned claim name is short and plain, is not credential-shaped, and is not one of iss, sub, aud, exp, iat or nbf');
       const v = rc[name];
       need((typeof v === 'string' && SAFE_VALUE.test(v) && !credentialShaped(v)) || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)), 'bad_claims', 'a pinned claim value is a short plain string, a number or true or false');
       return [name, v];
@@ -420,14 +424,23 @@ export class Engine {
     need(isObj(c) && Object.keys(c).every((k) => ['iss', 'sub', 'aud', 'extra'].includes(k)), 'bad_claims', 'claims takes iss, sub, aud and extra');
     const t = input.times === undefined ? {} : input.times;
     need(isObj(t) && Object.keys(t).every((k) => ['iat', 'exp', 'nbf'].includes(k)), 'bad_times', 'times takes iat, exp and nbf (seconds from the lab clock)');
-    const text = (v, what) => { need(typeof v === 'string', 'bad_claims', `${what} must be text`); return cleanValue(v, LIMITS.claimText); };
+    // Claim values are compared EXACTLY by the gateway, so the lab never rewrites one: a value is signed byte for byte, or refused (too long, or credential-shaped). The
+    // answer shows the value with hidden characters written out, and a notice for anything that is not plain ASCII text.
+    const notices = [];
+    const text = (v, what, claim) => {
+      need(typeof v === 'string', 'bad_claims', `${what} must be text`);
+      need(v.length <= LIMITS.claimText, 'claim_too_long', `a claim is at most ${LIMITS.claimText} characters, and the lab will not cut one`);
+      need(!credentialProblem(v), 'credential_shaped', 'that claim looks like a credential: the lab will not sign it or show it');
+      const odd = oddities(v); if (odd.length) notices.push({ claim, text: `${claim} is signed exactly as typed and contains ${odd.join(', ')}` });
+      return v;
+    };
     const offset = (v, dflt) => { const x = v === undefined ? dflt : v; if (x === null) return null; need(Number.isInteger(x) && Math.abs(x) <= 31_536_000, 'bad_times', 'a time is a whole number of seconds from the lab clock (or null to leave it out)'); return this.s.now + x; };
     const payload = {};
     const iss = c.iss === undefined ? (isAttacker ? ATTACKER.url : ISSUER[input.issuer].url) : c.iss;
-    if (iss !== null) payload.iss = text(iss, 'iss');
-    if (c.sub !== undefined && c.sub !== null) payload.sub = text(c.sub, 'sub');
+    if (iss !== null) payload.iss = text(iss, 'iss', 'iss');
+    if (c.sub !== undefined && c.sub !== null) payload.sub = text(c.sub, 'sub', 'sub');
     if (c.aud !== undefined && c.aud !== null) {
-      if (Array.isArray(c.aud)) { need(c.aud.length >= 1 && c.aud.length <= LIMITS.audienceValues, 'bad_claims', `aud lists at most ${LIMITS.audienceValues} values`); payload.aud = c.aud.map((a) => text(a, 'aud')); } else payload.aud = text(c.aud, 'aud');
+      if (Array.isArray(c.aud)) { need(c.aud.length >= 1 && c.aud.length <= LIMITS.audienceValues, 'bad_claims', `aud lists at most ${LIMITS.audienceValues} values`); payload.aud = c.aud.map((a) => text(a, 'aud', 'aud')); } else payload.aud = text(c.aud, 'aud', 'aud');
     }
     const exp = offset(t.exp, 3600); const iat = offset(t.iat, 0); const nbf = offset(t.nbf, null);
     if (exp !== null) payload.exp = exp;
@@ -436,10 +449,10 @@ export class Engine {
     if (c.extra !== undefined) {
       need(isObj(c.extra) && Object.keys(c.extra).length <= LIMITS.extraClaims, 'bad_claims', `extra is an object of at most ${LIMITS.extraClaims} claims`);
       for (const name of Object.keys(c.extra)) {
-        need(CLAIM_NAME.test(name) && !RESERVED_CLAIMS.has(name), 'bad_claims', 'an extra claim name is short and plain, and is not one of iss, sub, aud, exp, iat or nbf');
+        need(CLAIM_NAME.test(name) && !RESERVED_CLAIMS.has(name) && !credentialProblem(name), 'bad_claims', 'an extra claim name is short and plain, is not credential-shaped, and is not one of iss, sub, aud, exp, iat or nbf');
         const v = c.extra[name];
         need(typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)), 'bad_claims', 'an extra claim value is text, a number or true or false');
-        Object.defineProperty(payload, name, { value: typeof v === 'string' ? cleanValue(v, LIMITS.claimText) : v, enumerable: true, writable: true, configurable: true });
+        Object.defineProperty(payload, name, { value: typeof v === 'string' ? text(v, `an extra claim`, name) : v, enumerable: true, writable: true, configurable: true });
       }
     }
     const header = { alg, typ: 'JWT' }; if (kid !== null) header.kid = kid;
@@ -451,7 +464,7 @@ export class Engine {
     else if (alg === 'HS256') sig = signHS256(inputText, Buffer.from(k.publicJwk.n)); // the classic confusion attack: the issuer's PUBLIC key used as the HMAC secret
     const token = `${inputText}.${sig}`;
     need(token.length <= 4096, 'token_too_large', 'the token would be longer than 4096 characters');
-    return { mintedToken: token, label: 'lab-minted token: a real signature from a mock issuer, good only inside this lab', issuer: input.issuer, alg, kid, header: cleanClaims(header), claims: cleanClaims(payload), notes: alg === 'HS256' ? 'signed with the issuer\'s public key as the secret (the algorithm-confusion attack)' : alg === 'none' ? 'unsigned' : alg === 'ES256' ? 'the header says ES256 but the signature is RS256' : isAttacker ? 'signed by a key no issuer publishes' : '' };
+    return { mintedToken: token, label: 'lab-minted token: a real signature from a mock issuer, good only inside this lab', issuer: input.issuer, alg, kid, header: cleanClaims(header), claims: cleanClaims(payload), notices, notes: alg === 'HS256' ? 'signed with the issuer\'s public key as the secret (the algorithm-confusion attack)' : alg === 'none' ? 'unsigned' : alg === 'ES256' ? 'the header says ES256 but the signature is RS256' : isAttacker ? 'signed by a key no issuer publishes' : '' };
   }
 
   // ---------- verification: every step, in order, with the exact reason ----------------------------------------------------------------------------
@@ -478,7 +491,9 @@ export class Engine {
     const p = parseToken(token);
     if (!p.ok) return stop('parse', p.code, 401, p.detail);
     out.header = cleanClaims(p.header); out.claims = cleanClaims(p.payload);
-    mark('parse', 'pass', 'three base64url parts; the header and payload are JSON objects');
+    // RFC 7515: a crit header names extensions the receiver must understand, and a token naming any it does not understand is rejected. The lab understands none.
+    if (Object.hasOwn(p.header, 'crit')) return stop('parse', 'crit_unsupported', 401, 'the header has a crit parameter, which names extensions the lab does not understand: RFC 7515 says such a token is rejected');
+    mark('parse', 'pass', 'three canonical base64url parts; the header and payload are UTF-8 JSON objects');
 
     let ident = null;
     if (identityId !== undefined) {
@@ -513,11 +528,20 @@ export class Engine {
     let refreshNote = '';
     if (!jwk) {
       if (f.jwksUri) {
-        const r = this.refreshKeyset(ident, 'unknown signing key (kid)');
-        out.refresh = { attempted: true, ok: r.ok, detail: r.detail };
-        this.audit('jwks.refresh', { identityId: ident.id, outcome: r.ok ? 'ok' : 'failed', note: `on an unknown kid: ${r.detail}` });
-        jwk = ident.cache.keys.find((k) => k.kid === kid);
-        refreshNote = r.ok ? ` The key set was refreshed on sight of the unknown kid.` : ` A refresh was tried and failed (${r.detail}).`;
+        // A cooldown (lab-invented: the deck does not say whether unknown-kid refreshes are limited): one such refresh per identity per lab minute, so a caller sending
+        // endless made-up kids cannot make the gateway hammer the issuer. Within the cooldown the token is refused without a refresh.
+        const c = ident.cache; const cooled = c.lastUnknownKidAt !== undefined && now - c.lastUnknownKidAt < LIMITS.unknownKidCooldownSec;
+        if (cooled) {
+          out.refresh = { attempted: false, cooledDown: true, ok: null, detail: 'cooldown' };
+          refreshNote = ` No refresh was tried: the lab allows one unknown-kid refresh per identity per ${LIMITS.unknownKidCooldownSec / 60} lab minute (lab-invented limit; the deck does not say).`;
+        } else {
+          c.lastUnknownKidAt = now;
+          const r = this.refreshKeyset(ident, 'unknown signing key (kid)');
+          out.refresh = { attempted: true, ok: r.ok, detail: r.detail };
+          jwk = ident.cache.keys.find((k) => k.kid === kid);
+          refreshNote = r.ok ? ` The key set was refreshed on sight of the unknown kid.` : ` A refresh was tried and failed (${r.detail}).`;
+        }
+        jwk = jwk || ident.cache.keys.find((k) => k.kid === kid);
       } else refreshNote = ' This identity pins its keys and has no address to refresh from.';
       if (!jwk) return stop('keyset', 'unknown_kid', 401, `kid ${show(kid, 40)} is not in the key set.${refreshNote}`);
     }
@@ -597,7 +621,8 @@ export class Engine {
     if (top) top.response = { status: r.status, body: { code: r.code } };
     const claimedSub = r.claims && typeof r.claims.sub === 'string' ? r.claims.sub : undefined;
     this.audit('verify', { outcome: r.ok ? 'allowed' : 'refused', code: r.ok ? undefined : r.code, identityId: r.identityId || undefined, keyId: r.keyId || undefined, principal: r.principal || undefined,
-      deployment: r.ok ? r.deployment : undefined, claimed: r.ok ? undefined : claimedSub, service: input.service, scope: input.service, status: r.status });
+      deployment: r.ok ? r.deployment : undefined, claimed: r.ok ? undefined : claimedSub, service: input.service, scope: input.service, status: r.status,
+      note: r.refresh ? (r.refresh.attempted ? `unknown kid: the key set was refreshed (${r.refresh.ok ? 'ok' : 'failed'})` : 'unknown kid: the refresh was cooled down') : undefined });
     return r;
   }
 
@@ -701,7 +726,7 @@ export class Engine {
       const f = i.federation; const c = i.cache;
       return { id: i.id, name: i.name, description: i.description, kind: i.kind, platform: i.platform, enabled: i.enabled, scopes: [...i.scopes], notAfter: i.notAfter, createdAt: i.createdAt,
         federation: { issuer: f.issuer, subject: f.subject, audience: f.audience, jwksUri: f.jwksUri, pinnedKids: f.pinned ? f.pinned.map((k) => k.kid) : [], maxTokenLifetimeSec: f.maxTokenLifetimeSec, effectiveCapSec: f.maxTokenLifetimeSec || DEFAULT_MAX_LIFETIME, requiredClaims: { ...f.requiredClaims }, allowAnySubject: f.allowAnySubject },
-        keyset: { source: c.source, kids: c.keys.map((k) => k.kid), lastAttemptAt: iso(c.lastAttemptAt), nextRefreshAt: c.nextRefreshAt === null ? null : iso(c.nextRefreshAt), last: { ...c.last }, log: c.log.map((x) => ({ ...x })) },
+        keyset: { source: c.source, kids: c.keys.map((k) => k.kid), lastAttemptAt: iso(c.lastAttemptAt), cooldownUntil: c.lastUnknownKidAt === undefined || c.lastUnknownKidAt + LIMITS.unknownKidCooldownSec <= s.now ? null : iso(c.lastUnknownKidAt + LIMITS.unknownKidCooldownSec), nextRefreshAt: c.nextRefreshAt === null ? null : iso(c.nextRefreshAt), last: { ...c.last }, log: c.log.map((x) => ({ ...x })) },
         keys: this.keysOf(i.id).map((k) => k.id) };
     };
     return {
@@ -711,7 +736,7 @@ export class Engine {
       keys: [...s.keys.values()].map((k) => { const ident = k.owner.kind === 'identity' ? this.identity(k.owner.ref) : null; return { id: k.id, name: k.name, auth: k.auth, owner: { ...k.owner }, ownerName: ident ? ident.name : k.owner.kind === 'human' ? k.owner.ref : null, ownerMissing: k.owner.kind === 'identity' && !ident, scopes: [...k.scopes], effectiveScopes: ident ? this.effectiveScopes(ident, k) : [...k.scopes], enabled: k.enabled, principalLabel: k.owner.kind === 'human' ? `person ${k.owner.ref} (borrowed)` : ident ? `identity ${ident.name}` : 'identity (removed)' }; }),
       people: [...s.humans.values()].map((h) => ({ ...h })),
       backends: this.backendList.map((b) => ({ ...b })),
-      audit: s.audit.map((a) => ({ ...a })), auditDropped: s.auditDropped,
+      audit: [...s.audit.changes, ...s.audit.requests, ...s.audit.refusals].sort((a, b) => a.n - b.n).map((a) => ({ ...a })), auditDropped: { ...s.auditDropped },
       sensors: [...s.sensors.values()].map((x) => { const i = this.identity(x.identityId); return { identityId: x.identityId, name: i?.name, enabled: i?.enabled, audience: i?.federation.audience, subject: i?.federation.subject, enrolledAt: x.enrolledAt, policy: this.policyFor(x.identityId) ? JSON.parse(JSON.stringify(this.policyFor(x.identityId))) : null, findings: s.findings.filter((f) => f.identityId === x.identityId).length }; }),
       nodes: this.nodes(), namespaces: this.workNamespaces(),
       findings: s.findings.map((f) => ({ ...f })), reports: s.reports.map((r) => ({ ...r })),

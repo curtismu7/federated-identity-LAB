@@ -153,14 +153,23 @@ test('a key owned by a person stops when the person is inactive; a key owned by 
   assert.ok(kinds.every((x) => x.includes(`person ${C.castOwner}`)));
 });
 
-test('the audit log is a ring of 500: the oldest entry is dropped and counted, never hidden', () => {
+test('the audit is three rings so noise cannot push out what matters: refusals never evict a change or an allowed request, allowed requests never evict a change; each drop is counted', () => {
   const e = newEngine();
   const t = k8sMint(e).mintedToken;
-  for (let i = 0; i < LIMITS.audit + 20; i++) e.verify({ token: t, identityId: 'fid-001', service: 'mcp' });
-  const s = e.snapshot();
-  assert.equal(s.audit.length, LIMITS.audit);
-  assert.ok(s.auditDropped >= 20);
-  assert.equal(s.audit[0].n, s.auditDropped + 1);
+  e.updateIdentity({ identityId: 'fid-001', description: 'a change that must survive' });
+  const changesBefore = e.snapshot().audit.filter((a) => !a.outcome).length;
+  for (let i = 0; i < LIMITS.auditRequests + 20; i++) e.verify({ token: t, identityId: 'fid-001', service: 'mcp' });
+  let s = e.snapshot();
+  assert.equal(s.audit.filter((a) => a.outcome === 'allowed').length, LIMITS.auditRequests); assert.equal(s.auditDropped.requests, 20 + 0);
+  assert.equal(s.audit.filter((a) => !a.outcome).length, changesBefore, 'a flood of allowed requests evicted no change'); assert.equal(s.auditDropped.changes, 0);
+  for (let i = 0; i < LIMITS.auditRefusals + 30; i++) e.verify({ token: 'x', identityId: 'fid-001', service: 'mcp' });
+  s = e.snapshot();
+  assert.equal(s.audit.filter((a) => a.outcome === 'refused').length, LIMITS.auditRefusals); assert.equal(s.auditDropped.refusals, 30);
+  assert.equal(s.audit.filter((a) => a.outcome === 'allowed').length, LIMITS.auditRequests, 'a flood of refusals evicted no allowed request');
+  assert.equal(s.audit.filter((a) => !a.outcome).length, changesBefore, 'and no change');
+  assert.deepEqual(s.audit.map((a) => a.n), [...s.audit.map((a) => a.n)].sort((a, b) => a - b), 'the merged log is in order');
+  for (let i = 0; i < LIMITS.auditChanges + 5; i++) e.updateIdentity({ identityId: 'fid-001', description: `d${i}` });
+  assert.ok(e.snapshot().auditDropped.changes >= 5, 'changes are only ever pushed out by other changes');
 });
 
 test('reset returns to the seeded world: the clock, issuers, identities, keys and audit', () => {

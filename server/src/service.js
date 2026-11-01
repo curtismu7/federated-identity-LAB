@@ -2,16 +2,16 @@
 // (the raw request and response panes), with anything credential-shaped masked.
 import { Engine } from './engine.js';
 import { perform } from './actions.js';
-import { cleanFree } from './credentials.js';
+import { reveal } from './clean.js';
 import { newTrace, formatTraceparent } from './trace.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-// A copy of the visitor's parameters that is safe to show: strings cleaned and masked, nothing else changed. Depth-limited.
+// A copy of the visitor's parameters that is safe to show: credential-shaped strings and keys masked, hidden characters written out, nothing else changed. Depth-limited.
 export function scrub(value, depth = 0) {
-  if (typeof value === 'string') return cleanFree(value, 300);
+  if (typeof value === 'string') return reveal(value, 300);
   if (Array.isArray(value)) return depth > 3 ? [] : value.slice(0, 10).map((v) => scrub(v, depth + 1));
-  if (isObj(value)) return depth > 3 ? {} : Object.fromEntries(Object.keys(value).slice(0, 20).map((k) => [cleanFree(k, 40), scrub(value[k], depth + 1)]));
+  if (isObj(value)) return depth > 3 ? {} : Object.fromEntries(Object.keys(value).slice(0, 20).map((k) => [reveal(k, 40), scrub(value[k], depth + 1)]));
   return typeof value === 'number' || typeof value === 'boolean' || value === null ? value : undefined;
 }
 

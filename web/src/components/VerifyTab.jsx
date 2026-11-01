@@ -58,46 +58,51 @@ function Scenarios({ lab, scenarioId, setScenarioId }) {
   );
 }
 
-export default function VerifyTab({ story, lab, vertical, scenarioId, setScenarioId, pending, ui, setUi }) {
+export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenarioId, setScenarioId, pending, ui, setUi }) {
   const ro = lab.readOnly; const s = lab.state;
-  // The editor's state lives in App, so it survives a visit to another tab.
-  useEffect(() => { if (!ui) setUi({ presetId: "k8s-right", f: fieldsFromPreset(story.presets[0].mint), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null }); }, [ui]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The editor's state lives in App, so it survives a visit to another tab. It belongs to ONE (vertical, mode): every piece of state and every answer that arrives later is
+  // tagged with the context it was started under and is dropped unless that context is still the current one, so a verdict started in finance never lands in health.
+  const ctx = `${vertical}|${mode}|${ctxGen}`;
+  const fresh = () => ({ ctx, presetId: "k8s-right", f: fieldsFromPreset(story.presets[0].mint), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null });
+  useEffect(() => { if (!ui || ui.ctx !== ctx) setUi(fresh()); }, [ui, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
   const seq = useRef(0); const bseq = useRef(0);
-  const cur = ui || { presetId: "k8s-right", f: blank(), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null };
+  const cur = ui && ui.ctx === ctx ? ui : { ctx, presetId: "k8s-right", f: blank(), identityId: "fid-001", service: "mcp", token: "", result: null, minted: null, browser: null };
   const { presetId, f, identityId, service, token, result, minted } = cur;
   const browser = cur.browser && cur.browser.forToken === token ? cur.browser : null; // a result for text that has since been edited is not shown
-  const patch = (o) => setUi((x) => ({ ...(x || cur), ...o }));
-  const setF = (fn) => setUi((x) => { const b = x || cur; return { ...b, f: typeof fn === "function" ? fn(b.f) : fn }; });
+  // A patch only lands if the shared state is still for the context it was made under (an old instance's late answer finds a different ctx and is dropped).
+  const patchFor = (c) => (o) => setUi((x) => (x && x.ctx === c ? { ...x, ...o } : x));
+  const patch = patchFor(ctx);
+  const setF = (fn) => setUi((x) => (x && x.ctx === ctx ? { ...x, f: typeof fn === "function" ? fn(x.f) : fn } : x));
   const setIdentityId = (v) => patch({ identityId: v }); const setService = (v) => patch({ service: v }); const setToken = (v) => patch({ token: v, browser: null });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
   const load = (id) => { const p = story.presets.find((x) => x.id === id); if (!p) return; patch({ presetId: id, f: fieldsFromPreset(p.mint), identityId: p.identityId, service: p.service, token: "", result: null, minted: null, browser: null }); };
-  useEffect(() => { if (pending?.id && ui) load(pending.id); }, [pending, !!ui]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (pending?.id && ui && ui.ctx === ctx) load(pending.id); }, [pending, !!ui, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
   const decoded = useMemo(() => decodeToken(token), [token]);
   const identities = s?.identities || [];
   const now = s?.clock.now;
 
   const mint = async () => {
-    const mine = ++seq.current;
+    const mine = ++seq.current; const done = patchFor(ctx);
     const r = await lab.act("POST", "/api/tokens/mint", { mint: mintFromFields(f) });
     if (mine !== seq.current) return;
-    if (r.body?.ok) patch({ token: r.body.result.mintedToken, minted: { label: r.body.result.label, notes: r.body.result.notes }, result: null, browser: null }); else patch({ minted: { error: r.body?.error, detail: r.body?.detail } });
+    if (r.body?.ok) done({ token: r.body.result.mintedToken, minted: { label: r.body.result.label, notes: r.body.result.notes, notices: r.body.result.notices || [], claims: r.body.result.claims }, result: null, browser: null }); else done({ minted: { error: r.body?.error, detail: r.body?.detail } });
   };
   // The browser's own signature check on this token text. A newer run (or a newer edit) makes an older answer stale.
   const checkInBrowser = async (tok) => {
-    const mine = ++bseq.current;
-    patch({ browserBusy: true, browser: null });
+    const mine = ++bseq.current; const done = patchFor(ctx);
+    done({ browserBusy: true, browser: null });
     const b = await verifyInBrowser(tok, { issuers: story.issuers, vertical });
     if (mine !== bseq.current) return;
-    patch({ browser: { ...b, forToken: tok }, browserBusy: false });
+    done({ browser: { ...b, forToken: tok }, browserBusy: false });
   };
   const verify = async () => {
-    const mine = ++seq.current;
-    patch({ result: null, browser: null }); // the previous verdict (and browser answer) is cleared, so a stale answer is never mistaken for the new one
-    const r = await lab.act("POST", "/api/verify", { verify: { token, service, ...(identityId ? { identityId } : {}) } });
+    const mine = ++seq.current; const done = patchFor(ctx); const tok = token;
+    done({ result: null, browser: null }); // the previous verdict (and browser answer) is cleared, so a stale answer is never mistaken for the new one
+    const r = await lab.act("POST", "/api/verify", { verify: { token: tok, service, ...(identityId ? { identityId } : {}) } });
     if (mine !== seq.current) return;
     const b = r.body || {};
-    patch({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
-    checkInBrowser(token);
+    done({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
+    checkInBrowser(tok);
   };
 
   return (
@@ -146,6 +151,7 @@ export default function VerifyTab({ story, lab, vertical, scenarioId, setScenari
             <p><button type="button" className="primary" disabled={lab.busy} onClick={mint} data-testid="mint">Mint</button></p>
             {minted?.error && <p className="field-error" role="alert" data-testid="mint-error">Refused ({minted.error}): {visible(minted.detail || "")}</p>}
             {minted?.label && <p className="muted" data-testid="mint-label">{minted.label}{minted.notes ? `; ${minted.notes}` : ""}</p>}
+            {minted?.notices?.length > 0 && <ul className="plain" data-testid="mint-notices" role="status">{minted.notices.map((n, i) => <li key={i}><strong>Notice.</strong> {visible(n.text)}. The lab signs exactly what you typed; it does not normalise, trim or decode claims, because the gateway compares them exactly. Hidden characters are written out as <code>\u{"{...}"}</code> below.</li>)}</ul>}
           </section>
 
           <section className="panel" data-testid="token-panel">

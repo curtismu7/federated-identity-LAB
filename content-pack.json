@@ -232,23 +232,24 @@
       "story": "S05"
     },
     {
-      "id": "try-keyset-refresh",
-      "label": "Scenario 6: An unknown signing key triggers a refresh",
-      "description": "The issuer rotates. A token signed by the new key has a kid the gateway does not know: it refreshes the key set and the token verifies. A token signed by the retired key does not.",
+      "id": "try-lookalikes",
+      "label": "Scenario 6: Lookalikes are different strings",
+      "description": "The gateway compares exactly, and the lab signs exactly what is typed: a zero-width space, a fullwidth or Cyrillic letter, another case, a percent-encoded colon, a trailing space, a trailing slash on the audience or the issuer are each refused at their own step.",
       "group": "try-it",
       "action": {
         "type": "route",
         "href": "/#verify"
       },
       "terms": [
-        "key-set"
+        "exact-binding",
+        "pinned-claims"
       ],
       "story": "S06"
     },
     {
-      "id": "try-issuer-outage",
-      "label": "Scenario 7: The issuer is down: the last known good key set carries on",
-      "description": "With the issuer down, a token signed by a key the gateway already holds still verifies. A token signed by a key rotated in during the outage cannot be resolved. When the issuer returns it is.",
+      "id": "try-keyset-refresh",
+      "label": "Scenario 7: An unknown signing key triggers a refresh",
+      "description": "The issuer rotates. A token signed by the new key has a kid the gateway does not know: it refreshes the key set and the token verifies. A token signed by the retired key does not.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -260,9 +261,9 @@
       "story": "S07"
     },
     {
-      "id": "try-private-pinned",
-      "label": "Scenario 8: A private issuer with pinned keys",
-      "description": "The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again.",
+      "id": "try-issuer-outage",
+      "label": "Scenario 8: The issuer is down: the last known good key set carries on",
+      "description": "With the issuer down, a token signed by a key the gateway already holds still verifies. A token signed by a key rotated in during the outage cannot be resolved. When the issuer returns it is.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -274,8 +275,22 @@
       "story": "S08"
     },
     {
+      "id": "try-private-pinned",
+      "label": "Scenario 9: A private issuer with pinned keys",
+      "description": "The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "key-set"
+      ],
+      "story": "S09"
+    },
+    {
       "id": "try-revocation",
-      "label": "Scenario 9: Revocation and per-deployment attribution",
+      "label": "Scenario 10: Revocation and per-deployment attribution",
       "description": "Two pods of one ServiceAccount are attributed separately. Revoke the identity: the very next request is refused. Restore it, then remove it: the gateway can find no identity for the token.",
       "group": "try-it",
       "action": {
@@ -286,11 +301,11 @@
         "federated-identity",
         "attribution"
       ],
-      "story": "S09"
+      "story": "S10"
     },
     {
       "id": "try-key-owner",
-      "label": "Scenario 10: A key owned by an identity, or by a person",
+      "label": "Scenario 11: A key owned by an identity, or by a person",
       "description": "A key can name an identity as its owner; the console refuses two contradictory forms. When the person who owns a stored key goes inactive that key stops, and the identity-owned key does not. An identity with no key behind it authenticates nobody.",
       "group": "try-it",
       "action": {
@@ -300,11 +315,11 @@
       "terms": [
         "key-owned"
       ],
-      "story": "S10"
+      "story": "S11"
     },
     {
       "id": "try-platforms",
-      "label": "Scenario 11: Four platforms, one gateway",
+      "label": "Scenario 12: Four platforms, one gateway",
       "description": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way.",
       "group": "try-it",
       "action": {
@@ -314,11 +329,11 @@
       "terms": [
         "deployment-models"
       ],
-      "story": "S11"
+      "story": "S12"
     },
     {
       "id": "try-sensor",
-      "label": "Scenario 12: The sensor reports with its own token",
+      "label": "Scenario 13: The sensor reports with its own token",
       "description": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay.",
       "group": "try-it",
       "action": {
@@ -329,11 +344,11 @@
         "self-hosted-agents",
         "node-from-claims"
       ],
-      "story": "S12"
+      "story": "S13"
     },
     {
       "id": "try-enforcement",
-      "label": "Scenario 13: Enforcement: audit first, then enforce",
+      "label": "Scenario 14: Enforcement: audit first, then enforce",
       "description": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated.",
       "group": "try-it",
       "action": {
@@ -343,7 +358,7 @@
       "terms": [
         "enforcement-policy"
       ],
-      "story": "S13"
+      "story": "S14"
     },
     {
       "id": "try-tamper",
@@ -492,41 +507,46 @@
     },
     {
       "id": "S06",
+      "title": "Lookalikes are different strings",
+      "say": "The gateway compares exactly, and the lab signs exactly what is typed: a zero-width space, a fullwidth or Cyrillic letter, another case, a percent-encoded colon, a trailing space, a trailing slash on the audience or the issuer are each refused at their own step."
+    },
+    {
+      "id": "S07",
       "title": "An unknown signing key triggers a refresh",
       "say": "The issuer rotates. A token signed by the new key has a kid the gateway does not know: it refreshes the key set and the token verifies. A token signed by the retired key does not."
     },
     {
-      "id": "S07",
+      "id": "S08",
       "title": "The issuer is down: the last known good key set carries on",
       "say": "With the issuer down, a token signed by a key the gateway already holds still verifies. A token signed by a key rotated in during the outage cannot be resolved. When the issuer returns it is."
     },
     {
-      "id": "S08",
+      "id": "S09",
       "title": "A private issuer with pinned keys",
       "say": "The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again."
     },
     {
-      "id": "S09",
+      "id": "S10",
       "title": "Revocation and per-deployment attribution",
       "say": "Two pods of one ServiceAccount are attributed separately. Revoke the identity: the very next request is refused. Restore it, then remove it: the gateway can find no identity for the token."
     },
     {
-      "id": "S10",
+      "id": "S11",
       "title": "A key owned by an identity, or by a person",
       "say": "A key can name an identity as its owner; the console refuses two contradictory forms. When the person who owns a stored key goes inactive that key stops, and the identity-owned key does not. An identity with no key behind it authenticates nobody."
     },
     {
-      "id": "S11",
+      "id": "S12",
       "title": "Four platforms, one gateway",
       "say": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way."
     },
     {
-      "id": "S12",
+      "id": "S13",
       "title": "The sensor reports with its own token",
       "say": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay."
     },
     {
-      "id": "S13",
+      "id": "S14",
       "title": "Enforcement: audit first, then enforce",
       "say": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated."
     }
