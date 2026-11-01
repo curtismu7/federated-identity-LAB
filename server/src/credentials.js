@@ -12,12 +12,28 @@ export const DETECTORS = [
   D('aws-key', /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g),
   D('api-key', /\bsk-[A-Za-z0-9_-]{12,}/g),
   D('jwt', /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g),
-  D('bearer', /\b(?:Bearer|Basic)\s+(?:(?!Bearer|Basic)[A-Za-z0-9._~+/=-]){10,}/gi), // a value stops before the next keyword, so glued values are each masked
+  // A value runs to the first character that cannot be part of one, so a value that CONTAINS the word "bearer" or "basic" (CANARYbearer1234) is masked whole. A second
+  // detector finds a keyword glued behind a value (Bearer aaaaaaaaaa" + "Bearer bbbbbbbbbb" with no space between), which the first match has consumed.
+  D('bearer', /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{10,}/gi),
+  D('bearer', /(?<=[A-Za-z0-9._~+/=-])(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{10,}/gi),
   D('userinfo', /\b[a-z][a-z0-9+.-]{1,12}:\/\/[^\s/@:]{1,64}:[^\s/@]{1,128}@/gi),
-  // keyword, optional quotes, then : or = (or "is" for a password word), then the value. No leading word boundary, so a glued form (xpassword: zq81xkzq) is found too.
-  D('assignment', /(?:(?:password|passwd|pwd|pw|passphrase)s?["']?\s*(?:[:=]|is)\s*["']?\S{3,}|(?:secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?["']?\s*[:=]\s*["']?\S{3,})/gi),
+  // the same without a scheme (bob:pw@host.example, //bob:pw@host.example): not inside a longer word, and only before something that looks like a host. A user name of 65 or
+  // more characters is not found by this one (the long-blob detector may still catch it). mailto:alice@host.example looks the same and is masked too.
+  D('userinfo', /(?<![A-Za-z0-9._~%+-])[^\s/@:]{1,64}:[^\s/@]{1,128}@(?=[A-Za-z0-9-]+\.[A-Za-z0-9-]|localhost\b)/gi),
+  // keyword, then the value. No leading word boundary on the long words, so a glued form (xpassword: zq81xkzq) is found too. Four detectors, all reported as "assignment":
+  //  1. a separator (: = := => ->) after any keyword: the next 3 or more characters are the value, whatever they are;
+  //  2. "is", "are" or "was" after a password word (pass, password, passwd, pwd, pw, passcode, passphrase): the next 3 or more characters, whatever they are;
+  //  3. anything looser (a space, a dash, "is" after secret/token/key words): the value must look like a secret, 6 or more characters with a digit in them;
+  //  4. a login pair (login: bob / hunter2xyz, user: bob | hunter2xyz): the second part must look like a secret in the same way.
+  // So "password hunter2xyz" and "my token is abc12345" are masked, while "password reset", "the token is accepted" and "secret santa" stay readable. README documents the tradeoff.
+  // Keywords: password, passwd, passcode, passphrase, pwd, pw (+s) | the word pass | secret, token, api key, client secret, private key, access key, credential (+s). A key word may be
+  // written with a space, underscore or hyphen between its words.
+  D('assignment', /(?:(?:password|passwd|passcode|passphrase|pwd|pw)s?|(?<![a-z])pass(?![a-z])|(?:secret|token|api[\s_-]?key|apikey|client[\s_-]?secret|private[\s_-]?key|access[\s_-]?key|credential)s?)["']?\s*(?::=|=>|->|[:=])\s*["']?\S{3,}/gi),
+  D('assignment', /(?:(?:password|passwd|passcode|passphrase|pwd|pw)s?|(?<![a-z])pass(?![a-z]))["']?\s+(?:is|are|was)\s+["']?\S{3,}/gi),
+  D('assignment', /(?:(?:password|passwd|passcode|passphrase|pwd|pw)s?|(?<![a-z])pass(?![a-z])|(?:secret|token|api[\s_-]?key|apikey|client[\s_-]?secret|private[\s_-]?key|access[\s_-]?key|credential)s?)["']?\s+(?:(?:is|are|was)\s+|[-–—]+\s+)?["']?(?=\S*\d)\S{6,}/gi),
+  D('assignment', /(?<![a-z])(?:login|log-in|user(?:name)?|usr|account)(?![a-z])\s*[:=]\s*[^\s/|]{1,64}\s*[/|]\s*["']?(?=\S*\d)\S{6,}/gi),
   // a JSON key: {"password":"x"}, even when the value is one character
-  D('json-secret', /["'](?:password|passwd|pwd|pw|passphrase|secret|token|api[_-]?key|apikey|client[_-]?secret|private[_-]?key|access[_-]?key|credential)s?["']\s*:\s*["']?[^"'\s]{1,}/gi),
+  D('json-secret', /["'](?:password|passwd|passcode|pwd|pw|pass|passphrase|secret|token|api[\s_-]?key|apikey|client[\s_-]?secret|private[\s_-]?key|access[\s_-]?key|credential)s?["']\s*:\s*["']?[^"'\s]{1,}/gi),
   D('authorization', /\bAuthorization\s*[:=]\s*\S+(?:\s+\S+)?/gi),
   D('long-blob', /[A-Za-z0-9+/_=-]{32,}/g),
 ];
@@ -44,9 +60,13 @@ export function maskText(input) {
 
 // Invisible and format characters are DELETED (never turned into a space): zero-width, bidi, soft hyphen, Hangul fillers (U+3164, U+FFA0, U+115F, U+1160), combining
 // grapheme joiner (U+034F), Mongolian vowel separator (U+180E), variation selectors, tag characters, Arabic letter mark (U+061C), the U+206A-206F controls, U+17B4/U+17B5,
-// and the replacement character U+FFFD. Everything in Unicode's Default_Ignorable_Code_Point and Cf classes goes.
-const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u{FFFD}]/gu;
+// and the replacement character U+FFFD. Everything in Unicode's Default_Ignorable_Code_Point and Cf classes goes, and so do the controls named below.
+// C0 and C1 control characters and DEL are deleted as well (except tab, line feed and carriage return, which are separators): p<U+0001>a<U+0001>s... is "pass...".
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\u{FFFD}\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/gu;
 const CONTROL = /[\p{Cc}\p{Zl}\p{Zp}]/gu;
+// A \uXXXX or \u{X...} escape written out as TEXT ({"\u0070assword":"x"}) is the character it names, for matching (it is read twice, so a doubly wrapped one is found too).
+const ESCAPE = /\\u(?:([0-9a-fA-F]{4})|\{([0-9a-fA-F]{1,6})\})/g;
+const unescapeOne = (m, four, braced) => { const cp = parseInt(four || braced, 16); return cp <= 0x10ffff ? String.fromCodePoint(cp) : m; };
 const PERCENT_RUN = /(?:%[0-9a-fA-F]{2})+/g;
 const PRE_CAP = 40000; // the JSON body limit is 32 KB, so no real input is longer; this bounds NFKC expansion (one character can become eighteen)
 
@@ -61,9 +81,9 @@ export function decodePercent(text) {
   return t;
 }
 
-// The one normaliser the cleaners and the response mask share: bounded, NFKC-folded, invisible characters deleted, percent-decoded, folded again, controls to spaces.
+// The one normaliser the cleaners and the response mask share: bounded, NFKC-folded, invisible characters deleted, percent-decoded, folded again, then tab, line feed, carriage return and the line and paragraph separators to spaces.
 export function fold(value) {
-  const strip = (s) => s.normalize('NFKC').replace(INVISIBLE, '');
+  const strip = (s) => s.normalize('NFKC').replace(ESCAPE, unescapeOne).replace(INVISIBLE, '');
   return strip(decodePercent(strip(String(value ?? '').slice(0, PRE_CAP)))).replace(CONTROL, ' ').slice(0, 200000);
 }
 

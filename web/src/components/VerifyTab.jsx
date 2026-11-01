@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { visible } from "../safeText";
 import { decodeToken, labTime, tamper } from "../token";
+import { MAX_TOKEN } from "../browserVerify";
 import { compareResults, verifyInBrowser } from "../browserVerify";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
 
@@ -157,6 +158,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
           <section className="panel" data-testid="token-panel">
             <h2 className="panel__title">The token <SourceTag source="invented" label="mock-issued, labelled" /></h2>
             <label>Token (edit it freely; this is what the gateway will be given)<textarea rows={5} value={token} onChange={(e) => setToken(e.target.value)} spellCheck={false} data-testid="token" /></label>
+            <p className="muted" data-testid="token-length">{token.length} / {MAX_TOKEN} characters{token.length > MAX_TOKEN ? ": over the limit. The gateway refuses it at the parse step (malformed_token) and so does the browser check; nothing is cut." : ""}</p>
             <p className="toggles">
               <button type="button" onClick={() => setToken(tamper(token))} disabled={!decoded} data-testid="tamper">Tamper (change the subject, keep the signature)</button>
               <button type="button" className="primary" disabled={lab.busy || !token} onClick={verify} data-testid="verify">Verify</button>

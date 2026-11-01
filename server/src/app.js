@@ -124,7 +124,9 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
 
   if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) {
     app.use(express.static(WEB_DIST));
-    app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(path.join(WEB_DIST, 'index.html')));
+    // The page's own address (a path with no dot anywhere in it, outside /api and /assets) gets the app. A missing file (/assets/missing.js, /favicon.ico, /robots.txt), a dotfile (/.git/config) and
+    // anything with an extension (/server/src/engine.js, /index.html%00) is a fixed JSON 404 below, never the page with a 200, and the path is never echoed.
+    app.get(/^\/(?!(?:api|assets)(?:\/|$))[^.]*$/, (_req, res) => res.sendFile(path.join(WEB_DIST, 'index.html')));
   }
   app.use((_req, res) => res.status(404).json({ error: 'not_found' })); // never Express's default 404, which echoes the path
   return app;

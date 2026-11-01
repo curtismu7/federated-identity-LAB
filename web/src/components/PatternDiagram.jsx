@@ -6,8 +6,11 @@ import { REFIT_EVENT, useFitOnResize } from "../hooks/useFitOnResize";
 import { ClaimTag } from "./Bits";
 
 const FIT = { padding: 0.08 };
-// At phone width fitting the whole wide diagram makes the text unreadable, so the view is held at 0.8 on the first two boxes (node text is enlarged in app.css);
-// drag the canvas to pan, drag a box to move it.
+export const MIN_ZOOM = 0.1;
+// The view the diagram opens in. Always every box (no `nodes` list), so no box starts off screen; at phone width the zoom floor is lowered to let the whole drawing fit.
+export const fitFor = (isNarrow) => (isNarrow ? { padding: 0.04, minZoom: MIN_ZOOM, maxZoom: 1 } : FIT);
+// At phone width the whole diagram is still fitted, so every box is on screen at the start (the text is small there: node text is enlarged in app.css, pinch or use + to
+// zoom in, drag the canvas to pan, drag a box to move it). An earlier version held the zoom at 0.8 on the first two boxes and clipped both.
 const narrow = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(max-width: 600px)").matches;
 const HANDLES = [["t", Position.Top], ["b", Position.Bottom], ["l", Position.Left], ["r", Position.Right]];
 
@@ -57,7 +60,7 @@ function sides(a, b) {
 
 function Canvas({ pattern, positions, onMove, stepper }) {
   const ref = useRef(null);
-  const fit = useMemo(() => (narrow() ? { padding: 0.1, minZoom: 0.8, maxZoom: 0.8, nodes: pattern.nodes.slice(0, 2).map((n) => ({ id: n.id })) } : FIT), [pattern]);
+  const fit = useMemo(() => fitFor(narrow()), [pattern]);
   useFitOnResize(ref, fit);
   const active = stepper.step >= 0 ? pattern.steps[stepper.step] : null;
   const nodes = pattern.nodes.map((n) => ({
@@ -79,7 +82,7 @@ function Canvas({ pattern, positions, onMove, stepper }) {
   });
   return (
     <div ref={ref} className="pat-canvas" data-testid="pattern-canvas">
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView fitViewOptions={fit} nodesConnectable={false} minZoom={0.3}
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} fitView fitViewOptions={fit} nodesConnectable={false} minZoom={MIN_ZOOM}
         onNodeDragStop={(_, n) => onMove(n.id, n.position)} onNodeDrag={(_, n) => onMove(n.id, n.position)} proOptions={{ hideAttribution: true }}>
         <Background variant={BackgroundVariant.Dots} gap={18} />
         <Controls showInteractive={false} />

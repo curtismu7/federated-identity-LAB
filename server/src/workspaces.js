@@ -4,14 +4,19 @@
 import crypto from 'node:crypto';
 import { Engine } from './engine.js';
 import { refuse } from './errors.js';
+import { findCredentials } from './credentials.js';
 
 export const WORKSPACE_RE = /^[a-z0-9-]{1,40}$/;
 export const DEFAULT_WORKSPACE = 'default';
 
+// An id is lowercase letters, digits and hyphens, 1 to 40; never 24 or more hex characters (a hash or key), and never credential-shaped (sk-..., ghp_..., a bearer value): it is
+// echoed in every answer, so it must not become a place to park a secret. web/src/workspace.js applies the same rule to a saved id.
+export const validWorkspaceId = (raw) => WORKSPACE_RE.test(raw) && !/^[0-9a-f]{24,}$/.test(raw) && !findCredentials(raw).some((x) => x.id !== 'long-blob');
+
 export function workspaceFrom(req) {
   const raw = req.headers['x-workspace'];
   if (raw === undefined) return DEFAULT_WORKSPACE;
-  return typeof raw === 'string' && WORKSPACE_RE.test(raw) && !/^[0-9a-f]{24,}$/.test(raw) ? raw : null;
+  return typeof raw === 'string' && validWorkspaceId(raw) ? raw : null;
 }
 
 export function createWorkspaces({ max = 500, ttlMs = 60 * 60 * 1000, now = Date.now, makeRand = () => (n) => crypto.randomBytes(n) } = {}) {

@@ -4,6 +4,8 @@
 import { visible } from "./safeText";
 import { workspaceFetch } from "./workspace";
 
+// The same cap as the server (server/src/jwt.js MAX_TOKEN): a longer token is refused at the parse step by both. A test pins the two numbers together.
+export const MAX_TOKEN = 4096;
 const B64U = /^[A-Za-z0-9_-]*$/;
 const bytes = (s) => { const p = s.replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(p + "=".repeat((4 - (p.length % 4)) % 4)); return Uint8Array.from(bin, (c) => c.charCodeAt(0)); };
 const reencode = (u8) => { let bin = ""; u8.forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
@@ -26,7 +28,8 @@ export async function fetchJwks(issuerId, vertical) {
 // status: ok (the signature verifies) | bad (it does not) | no-key (no key to check it against) | refused (the token cannot be checked: malformed, or not RS256) | unavailable (the check could not run)
 export async function verifyInBrowser(token, { issuers, vertical, getJwks = fetchJwks, subtle = globalThis.crypto?.subtle } = {}) {
   try {
-    if (typeof token !== "string" || token === "") return result("refused", "There is no token to check.");
+    if (typeof token !== "string" || token === "") return result("refused", "Malformed token: there is no token to check.");
+    if (token.length > MAX_TOKEN) return result("refused", `Malformed token: it is longer than ${MAX_TOKEN} characters, which the lab refuses at the parse step (the browser and the server share this cap).`);
     const parts = token.split(".");
     if (parts.length !== 3 || !parts[0] || !parts[1] || !parts.every((p) => B64U.test(p))) return result("refused", "Malformed token: a JWT has exactly three base64url parts (the browser trims nothing, like the server).");
     if (!parts.every(canonical)) return result("refused", "Malformed token: a part is not canonical base64url (several texts can decode to the same bytes, so the lab accepts only one).");
