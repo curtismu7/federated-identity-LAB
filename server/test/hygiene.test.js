@@ -108,3 +108,19 @@ test('a workspace id that looks like a credential is refused with 400 bad_worksp
     assert.equal((await put(url, '/api/identities/fid-001', { mode: 'live', identity: { enabled: false } }, { 'x-workspace': 'w-good-2' })).status, 200); assert.equal(workspaces.size(), 2);
   }, { workspaces });
 });
+
+test('the answer mask is a net under the input cleaners: a credential that reached the state by some future bug is still masked in the answer, as a value and as an object key', async () => {
+  // A workspace store whose engines add a raw credential, in a value and in a key, to every snapshot (the cleaners that run on input are bypassed on purpose).
+  const real = createWorkspaces();
+  const dirty = (e) => { if (!e.dirtied) { const snap = e.snapshot.bind(e); e.snapshot = () => ({ ...snap(), leakedValue: `password: ${H}`, [`password: ${H}`]: 1, nested: [{ note: `the key is ${H}` }] }); e.dirtied = true; } return e; };
+  const workspaces = { engine: (id, v, c) => dirty(real.engine(id, v, c)), peek: (id, v) => { const e = real.peek(id, v); return e ? dirty(e) : null; }, reset: (id) => real.reset(id), size: () => real.size() };
+  await withServer(async (url) => {
+    await post(url, '/api/clock', { mode: 'live', vertical: 'finance', clock: { minutes: 1 } }, { 'x-workspace': 'w-net' });
+    const read = await (await get(url, '/api/state?mode=live', { 'x-workspace': 'w-net' })).text();
+    const write = await (await post(url, '/api/clock', { mode: 'live', vertical: 'finance', clock: { minutes: 1 } }, { 'x-workspace': 'w-net' })).text();
+    for (const [what, text] of [['a read', read], ['a write', write]]) {
+      assert.ok(text.includes('leakedValue'), `${what}: the dirty snapshot did reach the answer`);
+      assert.ok(!text.includes(H), `${what}: the credential is masked in the answer`);
+    }
+  }, { workspaces });
+});
