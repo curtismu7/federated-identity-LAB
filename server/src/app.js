@@ -15,7 +15,7 @@ import { InputError } from './errors.js';
 import { MOCK_TABLE } from './mockTable.js';
 import { createWorkspaces, workspaceFrom } from './workspaces.js';
 import { jwksFor, liveState, mockState, runAction } from './service.js';
-import { maskDeep } from './mask.js';
+import { maskDeep, maskStatic } from './mask.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = process.env.WEB_DIST || path.resolve(HERE, '../../web/dist');
@@ -37,24 +37,25 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     return next();
   });
   api.use(express.json({ limit: '32kb' }));
-  // Defence in depth: every JSON answer is masked for credential-shaped values, whatever path produced it (the one lab-minted token field is exempt: mask.js).
-  api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send(maskDeep(b)); next(); });
+  // Defence in depth: every JSON answer is masked for credential-shaped values, whatever path produced it (the lab's own opaque fields are exempt: mask.js). An answer the lab
+  // wrote entirely itself (the story, the diagrams, the Mock tables: res.locals.lab) is masked as prose, where the words "token" and "password" are words.
+  api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send((res.locals.lab ? maskStatic : maskDeep)(b)); next(); });
   api.use('/health', health.router);
   const verticalOf = (req) => verticalFrom(req.body?.vertical ?? req.query.vertical);
   const castFor = (req) => loadCast(configFile, verticalOf(req));
   const noStore = (res) => res.set('Cache-Control', 'no-store');
   const ws = (req, res) => { const id = workspaceFrom(req); if (!id) res.status(400).json({ error: 'bad_workspace' }); return id; };
 
-  api.get('/story', (req, res) => { noStore(res); res.json(buildStory(castFor(req), verticalOf(req))); });
-  api.get('/diagram', (req, res) => { noStore(res); res.json(buildDiagram(castFor(req), DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0])); });
-  api.get('/info', (_req, res) => { noStore(res); res.json({ mode: defaultMode(), modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
+  api.get('/story', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildStory(castFor(req), verticalOf(req))); });
+  api.get('/diagram', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildDiagram(castFor(req), DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0])); });
+  api.get('/info', (_req, res) => { noStore(res); res.locals.lab = true; res.json({ mode: defaultMode(), modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
 
   api.get('/state', (req, res) => {
     const id = ws(req, res); if (!id) return;
     noStore(res);
     const mode = modeOf(req.query.mode); if (!mode) return res.status(400).json({ error: 'bad_mode', detail: 'mode must be mock or live' });
     const vertical = verticalOf(req);
-    if (mode === 'mock') return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) });
+    if (mode === 'mock') { res.locals.lab = true; return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) }); }
     return res.json({ mode, vertical, workspace: id, state: liveState(id, workspaces, vertical, castFor(req)) });
   });
 

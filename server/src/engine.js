@@ -12,7 +12,7 @@ import {
 } from './catalog.js';
 import { GENERATIONS, keyAt } from './keys.js';
 import { b64u, jwkProblem, parseToken, signHS256, signRS256, signingInput, verifyRS256 } from './jwt.js';
-import { cleanFree, findCredentials } from './credentials.js';
+import { cleanFree, credentialShaped } from './credentials.js';
 import { cleanClaims, credentialProblem, oddities, show } from './clean.js';
 import { formatTraceparent } from './trace.js';
 import { refuse } from './errors.js';
@@ -45,9 +45,7 @@ const pad = (n, w = 4) => String(n).padStart(w, '0');
 const need = (cond, code, msg, status = 400) => { if (!cond) throw refuse(code, msg, status); };
 const strictKeys = (o, allowed, what = 'the call') => { need(isObj(o) && Object.keys(o).every((k) => allowed.includes(k)), 'unknown_field', `${what} carries a field the lab does not take`); };
 const iso = (sec) => new Date(sec * 1000).toISOString();
-// A stored value is refused (never echoed) if it looks like a credential. The generic long-blob detector would reject a legitimate SPIFFE ID, so for stored values a
-// "blob" is a run of 24 or more letters, digits, + _ = with no separator; this is a heuristic, and README says so.
-const credentialShaped = (s) => findCredentials(s).some((x) => x.id !== 'long-blob') || /[A-Za-z0-9+_=]{24,}/.test(s);
+// A stored value is refused (never echoed) if it looks like a credential (the shared masker: credentials.js).
 
 // Strict forms for values the engine STORES and shows. A value outside the form, or credential-shaped, is refused without being echoed.
 const SAFE_URL = /^https:\/\/[a-z0-9](?:[a-z0-9.-]{0,60}[a-z0-9])?\.(?:example|invalid)(?:\/[A-Za-z0-9._~/-]{0,100})?$/;

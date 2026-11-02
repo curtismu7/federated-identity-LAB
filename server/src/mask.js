@@ -1,44 +1,36 @@
-// Defence in depth: every API response passes through maskDeep, so a credential-shaped value can never leave in any field even if a code path
-// forgot to clean its input. Iterative: a deep structure cannot overflow the stack. The generic long-blob detector is NOT applied here
-// (ids, hashes and trace ids are long and legitimate); the specific token, key, bearer and assignment detectors are. Visitor text is
-// already fully cleaned (long blobs included) on the way in by cleanFree.
-import { DETECTORS, fold, maskSpans } from './credentials.js';
+// The one masker of this lab: shared-masker 1.4.0 (commit 9bc664a, copied unchanged to ./shared/), configured once for this app. Masking is a heuristic: it catches the
+// shapes it knows and can miss a short random value that has no keyword in front of it. README says so.
+//
+// Opaque names (the value under them is NOT a secret, or is shown raw by design). The lab writes each one itself:
+//   traceparent, traceId   W3C trace ids the lab generates for every action (the engine refuses a visitor claim of the same name: RESERVED_CLAIMS in engine.js);
+//   mintedToken            the token the lab's own mock issuer just minted. Education: it is shown raw and labelled "lab-minted" (a pasted token is masked, never shown; same RESERVED_CLAIMS);
+//   n, e                   the PUBLIC half of an RSA key in a JWKS (the browser check reads them); a pasted key set is validated as RSA public keys before it is stored.
+import { createMasker } from './shared/mask.js';
+import { backends } from './catalog.js';
+import { PRESETS } from './data.js';
 
-const SPECIFIC = DETECTORS.filter((d) => d.id !== 'long-blob');
-const OPAQUE = new Set(['traceparent', 'traceId', 'mintedToken', 'n', 'e']); // ids, the lab-minted token and PUBLIC key halves (the JWKS the browser check reads)
+export const OPAQUE_KEYS = new Set(['traceparent', 'traceId', 'mintedToken', 'n', 'e']);
 
-// The response mask matches on the FOLDED text (invisible characters deleted, percent-decoded, NFKC): a secret hidden with zero-width, Hangul-filler, variation-selector or
-// tag characters, or percent-encoded once or twice, is found. Text with nothing credential-shaped in it is returned EXACTLY as given (a claim's hidden characters are
-// written out as \u{...} by the cleaners, and exactness is the point); text with a secret in it is returned folded and masked.
-export function maskResponseText(text) {
-  if (text.length > 40000) return maskRaw(text);
-  const flat = fold(text);
-  const spans = spansOf(flat);
-  return spans.length ? maskSpans(flat, spans) : text;
-}
-const spansOf = (flat) => { const spans = []; for (const d of SPECIFIC) { d.re.lastIndex = 0; for (const m of flat.matchAll(d.re)) spans.push({ start: m.index, end: m.index + m[0].length, id: d.id }); } return spans; };
-const maskRaw = (text) => { const spans = spansOf(text); return spans.length ? maskSpans(text, spans) : text; };
+// Two members whose NAME looks like a secret but whose value is the lab's own text, decided by the VALUE (a visitor cannot make a value equal to one of these):
+//   credential  the placeholder text of a backend's configured credential ("[masked: the application's own static credential]"), the lab holds no secret;
+//   preset      the id of one of the lab's presets ("k8s-right");
+//   inboundTokenForwarded   the lab's own boolean (always false: the token stops at the gateway); a boolean carries no text.
+const PLACEHOLDERS = new Set(backends({ castBrand: 'x', castHost: 'x' }).map((b) => b.credential));
+const PRESET_IDS = new Set(PRESETS.map((p) => p.id));
+const labText = (key, _path, value) => (typeof value === 'string' && ((key === 'credential' && PLACEHOLDERS.has(value)) || (key === 'preset' && PRESET_IDS.has(value)))) || (key === 'inboundTokenForwarded' && typeof value === 'boolean');
 
-// Object KEYS carry typed text too (a pinned-claim name, an unknown field): a credential-shaped key is replaced by its masked form, and two keys that mask to the
-// same text are kept apart with a numeric suffix.
-const maskKey = (k) => (OPAQUE.has(k) ? k : maskResponseText(k));
+// maxNodes / maxTotalChars: the whole Mock table (three verticals, every scenario) is one object in the tests and in the table builder; the defaults (20,000 nodes) would cut it
+// with a [masked:too-large] mark. A request body is capped at 32 KB, so the larger bound is not a cost a visitor can drive up.
+const BOUNDS = { maxNodes: 400000, maxTotalChars: 16_000_000 };
 
-export function maskDeep(value) {
-  const clone = (x) => (Array.isArray(x) ? [] : x && typeof x === 'object' ? {} : x);
-  // Objects get their (masked) keys through defineProperty, so a key named __proto__ is plain data and two keys that mask alike are kept apart with a suffix.
-  const put = (dst, key, v) => {
-    if (Array.isArray(dst) || dst === root) { dst[key] = v; return; }
-    let k = key; for (let i = 2; Object.hasOwn(dst, k); i++) k = `${key}#${i}`;
-    Object.defineProperty(dst, k, { value: v, enumerable: true, writable: true, configurable: true });
-  };
-  const root = { v: clone(value) };
-  const work = [[value, root, 'v', false]];
-  while (work.length) {
-    const [src, dst, key, opaque] = work.pop();
-    if (typeof src === 'string') { put(dst, key, opaque ? src : maskResponseText(src)); continue; }
-    if (src === null || typeof src !== 'object') { put(dst, key, src); continue; }
-    const copy = clone(src); put(dst, key, copy);
-    for (const k of Object.keys(src).reverse()) work.push([src[k], copy, Array.isArray(src) ? k : maskKey(k), OPAQUE.has(k)]);
-  }
-  return root.v;
-}
+// The answer mask: every answer that can carry something a visitor typed (Live state, every write, hops, audit). A member NAMED like a secret (token, password ...) is masked
+// whatever its value looks like, except the opaque ones above.
+const masker = createMasker({ opaqueKeys: OPAQUE_KEYS, opaque: labText, ...BOUNDS });
+// The static mask: what the lab itself wrote (the story, the diagrams, the Mock tables), which no visitor can change. Prose may use the words "token" and "password" as words, so the
+// member name is not read ('none'); secret-looking TEXT inside a value is still masked.
+const prose = createMasker({ opaqueKeys: OPAQUE_KEYS, keyMode: 'none', ...BOUNDS });
+
+export const { maskText, maskDeep, looksLikeCredential, isCredentialId } = masker;
+export const maskStatic = prose.maskDeep;
+// An older name of maskText, kept so no call site changes.
+export const maskResponseText = (text) => masker.maskText(String(text));

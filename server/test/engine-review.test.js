@@ -72,7 +72,7 @@ test('maskDeep masks object KEYS at every depth, keeps shape, de-duplicates coll
   const out = maskDeep({ [g]: 1, [g2]: 2, ok: { deep: { [g]: ['x', { [`password:correcthorse${'1'}`]: 3 }] } }, 'fid-001': 4, n: 'AQAB', e: 'AQAB', __proto__x: 1 });
   const text = JSON.stringify(out);
   assert.ok(!text.includes(g) && !text.includes(g2) && !text.includes('correcthorse'));
-  assert.deepEqual(Object.keys(out).filter((k) => k.startsWith('[masked')), ['[masked:github-token]', '[masked:github-token]#2'], 'two keys that mask alike are kept apart');
+  assert.deepEqual(Object.keys(out).filter((k) => k.startsWith('[masked')), ['[masked:prefix-token]', '[masked:prefix-token]#2'], 'two keys that mask alike are kept apart');
   assert.equal(out['fid-001'], 4); assert.equal(out.n, 'AQAB'); assert.equal(out.e, 'AQAB');
   assert.equal(Object.keys(out.ok.deep).length, 1);
   const proto = JSON.parse('{"__proto__":{"polluted":1}}'); const m = maskDeep(proto);

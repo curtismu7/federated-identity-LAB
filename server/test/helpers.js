@@ -6,6 +6,7 @@ import { Engine } from '../src/engine.js';
 import { VERTICALS, fillDeep } from '../src/cast.js';
 import { PRESETS } from '../src/data.js';
 import { seededRand } from '../src/scenarios.js';
+import { createStats, maskText as sharedMaskText } from '../src/shared/mask.js';
 
 export const C = VERTICALS.finance;
 export const newEngine = (cast = C) => new Engine(cast, { rand: seededRand('test') });
@@ -50,3 +51,10 @@ export async function api(url, method, path, body, ws = 'default', headers = {})
   const r = await f(url, path, { mode: 'live', vertical: 'finance', ...body }, { 'x-workspace': ws, ...headers });
   return { status: r.status, body: await r.json() };
 }
+
+// The detector ids the shared masker reports for a text, one entry per hit: [{ id }]. (The lab's own span finder was replaced by the shared masker.)
+export const findCredentials = (text) => {
+  const st = createStats();
+  sharedMaskText(String(text), { stats: st });
+  return Object.entries(st.byDetector).flatMap(([id, n]) => Array.from({ length: n }, () => ({ id })));
+};
