@@ -86,7 +86,7 @@ test('typing every credential shape into every field of every endpoint never ech
 test('a credential in a real, accepted action is masked in the response, the hops, the audit trail and the state', async () => {
   await withServer(async (url) => {
     for (const [name, n] of Object.entries(NEEDLES)) {
-      const W = { 'x-workspace': `echo-${name.toLowerCase()}`.slice(0, 30).replace(/[^a-z0-9-]/g, '-') };
+      const W = { 'x-workspace': `w-echo-${name.toLowerCase()}`.slice(0, 30).replace(/[^a-z0-9-]/g, '-') };
       const refused = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: `x ${n.raw}`, note: n.raw } } } }), W); const rt = await refused.text();
       assert.equal(refused.status, 400, `${name}: a credential typed as a claim is refused, not signed`); assert.ok(!rt.includes(n.probe), `${name}: not in the refusal`); assert.match(rt, /credential_shaped/);
       const m = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: K8S_SUB, aud: GW, extra: { pod: 'p-0' } } } }), W);
@@ -177,7 +177,7 @@ test('a keyword split by a C0, DEL or C1 control character (password, pw, token,
 test('a split keyword in a name is masked in the stored state, the audit trail and hop 1; as a mint claim it is refused; a control character that hides nothing is shown written out', async () => {
   await withServer(async (url) => {
     for (const ch of CONTROLS) for (const [word, typed, probe] of CONTROL_FORMS(ch)) {
-      const W = { 'x-workspace': `ctl-${ch.charCodeAt(0)}-${word.toLowerCase().replace(/[^a-z]/g, '')}` };
+      const W = { 'x-workspace': `w-ctl-${ch.charCodeAt(0)}-${word.toLowerCase().replace(/[^a-z]/g, '')}` };
       const put1 = await put(url, '/api/identities/fid-001', live({ identity: { name: typed } }), W); const t = await put1.text();
       assert.equal(put1.status, 200, word); assert.ok(!t.includes(probe), `${word}: not in the update answer, its hops or its state`);
       const st = await (await get(url, '/api/state?mode=live&vertical=finance', W)).json();
@@ -189,7 +189,7 @@ test('a split keyword in a name is masked in the stored state, the audit trail a
       }
     }
     // claim exactness: a control character that hides no credential is signed exactly and shown written out, with a notice
-    const r = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: 'a\u0001b\u0085c\u007fd', aud: 'x' } } }), { 'x-workspace': 'ctl-plain' });
+    const r = await post(url, '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { sub: 'a\u0001b\u0085c\u007fd', aud: 'x' } } }), { 'x-workspace': 'w-ctl-plain' });
     const b = await r.json(); assert.equal(r.status, 200);
     assert.equal(b.result.claims.sub, 'a\\u{1}b\\u{85}c\\u{7f}d', 'the hidden characters are written out'); assert.ok(b.result.notices.some((n) => /hidden characters/.test(n.text)));
     assert.equal(JSON.parse(Buffer.from(b.result.mintedToken.split('.')[1], 'base64url').toString()).sub, 'a\u0001b\u0085c\u007fd', 'and signed exactly as typed');

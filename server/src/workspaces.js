@@ -4,14 +4,15 @@
 import crypto from 'node:crypto';
 import { Engine } from './engine.js';
 import { refuse } from './errors.js';
-import { looksLikeCredential } from './mask.js';
+import { safeWorkspaceId } from './shared/hygiene.js';
 
 export const WORKSPACE_RE = /^[a-z0-9-]{1,40}$/;
 export const DEFAULT_WORKSPACE = 'default';
 
-// An id is lowercase letters, digits and hyphens, 1 to 40; never 24 or more hex characters (a hash or key), and never credential-shaped (sk-..., ghp_..., a bearer value): it is
-// echoed in every answer, so it must not become a place to park a secret. web/src/workspace.js applies the same rule to a saved id.
-export const validWorkspaceId = (raw) => WORKSPACE_RE.test(raw) && !/^[0-9a-f]{24,}$/.test(raw) && !looksLikeCredential(raw);
+// An id is the built-in "default", or "w-" and a lab name (safeWorkspaceId of the shared hygiene helpers: letters, digits and hyphens, at least one letter or a date / run number,
+// never a credential-shaped id such as pw-..., token-..., sk-..., a long hex or alphanumeric run, or a keyword followed by a secret-looking part), lowercase, 1 to 40 characters.
+// It is echoed in every answer, so it must not become a place to park a secret; a refused id is never echoed. web/src/workspace.js keeps only ids it made itself (w- and 16 hex digits).
+export const validWorkspaceId = (raw) => typeof raw === 'string' && WORKSPACE_RE.test(raw) && (raw === DEFAULT_WORKSPACE || safeWorkspaceId(raw) !== null);
 
 export function workspaceFrom(req) {
   const raw = req.headers['x-workspace'];

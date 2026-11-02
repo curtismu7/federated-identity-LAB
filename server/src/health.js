@@ -24,6 +24,6 @@ export function createHealth({ runChecks = defaultChecks, now = () => new Date()
     res.set('Cache-Control', 'no-store');
     res.json({ schema: 'demo-health/1', at: last.at || now().toISOString(), state: last.state, runtime: 'offline', demo: DEMO });
   });
-  router.all('/', (_req, res) => res.set('Allow', 'GET').status(405).json({ error: 'method_not_allowed' }));
+  // a wrong method is answered 405 with Allow by the route table in app.js
   return { router, refresh, ready, stop: () => clearInterval(timer) };
 }

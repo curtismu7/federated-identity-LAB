@@ -420,11 +420,11 @@ describe("Reset and stale answers", () => {
   it("Reset clears this workspace in Live (the clock, the audit log, revocations); another workspace is not touched", async () => {
     await mount(); await live();
     await click("revoke-fid-001"); await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(/disabled/), T);
-    const other = await realFetch(`${base}/api/clock`, { method: "POST", headers: { "content-type": "application/json", origin: base, "x-workspace": "other-ws" }, body: JSON.stringify({ mode: "live", vertical: "finance", clock: { minutes: 5 } }) });
+    const other = await realFetch(`${base}/api/clock`, { method: "POST", headers: { "content-type": "application/json", origin: base, "x-workspace": "w-other-ws" }, body: JSON.stringify({ mode: "live", vertical: "finance", clock: { minutes: 5 } }) });
     expect(other.status).toBe(200);
     await click("reset");
     await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(/enabled/), T);
-    const st = await (await realFetch(`${base}/api/state?mode=live`, { headers: { "x-workspace": "other-ws" } })).json();
+    const st = await (await realFetch(`${base}/api/state?mode=live`, { headers: { "x-workspace": "w-other-ws" } })).json();
     expect(st.state.clock.advancedMin).toBe(5);
   }, 60000);
 

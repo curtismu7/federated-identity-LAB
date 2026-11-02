@@ -7,7 +7,8 @@ import { codeOf, get, post, withServer } from './helpers.js';
 const C = VERTICALS.finance;
 test('workspaceFrom defaults, accepts a good id and refuses a bad, hex-looking or credential-looking one', () => {
   assert.equal(workspaceFrom({ headers: {} }), 'default');
-  assert.equal(workspaceFrom({ headers: { 'x-workspace': 'abc-1' } }), 'abc-1');
+  assert.equal(workspaceFrom({ headers: { 'x-workspace': 'w-abc-1' } }), 'w-abc-1');
+  assert.equal(workspaceFrom({ headers: { 'x-workspace': 'abc-1' } }), null, 'an id without the w- prefix is refused');
   assert.equal(workspaceFrom({ headers: { 'x-workspace': 'w-0123456789abcdef' } }), 'w-0123456789abcdef');
   for (const bad of ['', 'A', 'a b', 'a/b', 'x'.repeat(41), ['a'], '__proto__', 'deadbeef'.repeat(4), '0123456789abcdef01234567']) assert.equal(workspaceFrom({ headers: { 'x-workspace': bad } }), null, String(bad));
   assert.ok(WORKSPACE_RE.test('a'));
@@ -41,17 +42,17 @@ test('each engine gets its own random source', () => {
 });
 
 test('a credential-looking workspace id is refused, not accepted and echoed masked (N3)', async () => {
-  const bad = ['sk-abcdefghijklmnop', 'my-sk-abcdefghijklmnop', 'glpat-abcdefghijkl', 'xoxb-12345678', 'xoxp-abcdefgh', 'sk-' + 'a'.repeat(30)];
-  const fine = ['sk-short', 'task-abcdefghijklmnop', 'sk', 'xoxb-1234567', 'glpat-abcdefghijk', 'w-0123456789abcdef', 'visitor-12'];
+  const bad = ['sk-abcdefghijklmnop', 'my-sk-abcdefghijklmnop', 'glpat-abcdefghijkl', 'xoxb-12345678', 'xoxp-abcdefgh', 'sk-' + 'a'.repeat(30), 'sk-short', 'xoxb-1234567', 'glpat-abcdefghijk', 'task-abcdefghijklmnop', 'sk', 'visitor-12'];
+  const fine = ['w-0123456789abcdef', 'w-visitor-12', 'w-task-board', 'default'];
   for (const id of bad) assert.equal(workspaceFrom({ headers: { 'x-workspace': id } }), null, id);
   for (const id of fine) assert.equal(workspaceFrom({ headers: { 'x-workspace': id } }), id, id);
-  assert.equal(validWorkspaceId('g'.repeat(40)), true); assert.equal(validWorkspaceId('g'.repeat(41)), false);
+  assert.equal(validWorkspaceId(`w-${'g'.repeat(38)}`), true); assert.equal(validWorkspaceId(`w-${'g'.repeat(39)}`), false);
   await withServer(async (url) => {
     for (const id of bad) {
       for (const r of [await get(url, '/api/state?mode=live', { 'x-workspace': id }), await post(url, '/api/clock', { mode: 'live', clock: { minutes: 1 } }, { 'x-workspace': id }), await post(url, '/api/reset', {}, { 'x-workspace': id })]) {
         assert.equal(r.status, 400, id); const text = await r.text(); assert.deepEqual(JSON.parse(text), { error: 'bad_workspace' }); assert.ok(!text.includes(id.slice(0, 12)));
       }
     }
-    assert.equal((await get(url, '/api/state?mode=live', { 'x-workspace': 'task-abcdefghijklmnop' })).status, 200);
+    assert.equal((await get(url, '/api/state?mode=live', { 'x-workspace': 'w-task-board' })).status, 200);
   });
 });

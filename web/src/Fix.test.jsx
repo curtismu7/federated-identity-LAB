@@ -137,10 +137,11 @@ describe("the diagram tab recovers from a failed load (N6)", () => {
 });
 
 describe("the workspace id the page keeps is one the server accepts (N3)", () => {
-  it("the page's rule agrees with the server's on a table of ids", () => {
+  it("the page keeps only ids the server accepts: its rule is a subset of the server's, and agrees on a table of ids", () => {
     const ids = ["default", "w-0123456789abcdef", "a", "g".repeat(40), "g".repeat(41), "", "A", "a b", "a_b", "deadbeef".repeat(4), "0123456789abcdef01234567", "0123456789abcdef0123456",
       "sk-abcdefghijklmnop", "sk-short", "task-abcdefghijklmnop", "my-sk-abcdefghijklmnop", "glpat-abcdefghijkl", "glpat-abcdefghijk", "xoxb-12345678", "xoxb-1234567", "xoxp-abcdefgh", "visitor-12"];
-    for (const id of ids) expect(validWorkspaceId(id), JSON.stringify(id)).toBe(serverValid(id));
+    for (const id of ids) { if (validWorkspaceId(id)) expect(serverValid(id), JSON.stringify(id)).toBe(true); expect(validWorkspaceId(id), JSON.stringify(id)).toBe(id === "w-0123456789abcdef"); }
+    expect(serverValid("default")).toBe(true); expect(validWorkspaceId("default")).toBe(false); expect(validWorkspaceId("w-1234567890123456")).toBe(false); expect(serverValid("w-1234567890123456")).toBe(false);
     expect(validWorkspaceId(undefined)).toBe(false); expect(validWorkspaceId(5)).toBe(false);
   });
 
@@ -148,7 +149,7 @@ describe("the workspace id the page keeps is one the server accepts (N3)", () =>
     window.sessionStorage.setItem("fid.workspace", "deadbeef".repeat(4));
     const id = workspaceId(); expect(id).toMatch(/^w-[0-9a-f]{16}$/); expect(window.sessionStorage.getItem("fid.workspace")).toBe(id);
     forgetWorkspace(); window.sessionStorage.setItem("fid.workspace", "sk-abcdefghijklmnop"); expect(workspaceId()).not.toBe("sk-abcdefghijklmnop");
-    forgetWorkspace(); window.sessionStorage.setItem("fid.workspace", "my-saved-id"); expect(workspaceId()).toBe("my-saved-id");
+    forgetWorkspace(); window.sessionStorage.setItem("fid.workspace", "w-0123456789abcdef"); expect(workspaceId()).toBe("w-0123456789abcdef");
     for (let i = 0; i < window.sessionStorage.length; i++) expect(window.sessionStorage.key(i)).not.toMatch(/^agl\./);
     forgetWorkspace(); window.sessionStorage.clear(); window.sessionStorage.setItem("agl.workspace", "old-id"); expect(workspaceId()).not.toBe("old-id");
   });
