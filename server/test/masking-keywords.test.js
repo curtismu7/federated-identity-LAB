@@ -28,10 +28,10 @@ test('keyword plus value in the looser spellings is masked by every cleaner (S1)
   for (const text of forms) for (const [name, fn] of CLEANERS) assert.ok(!fn(`please note ${text} thanks`).includes(V), `${text} through ${name}`);
 });
 
-test('vertical tab and form feed are deleted like the other controls (a keyword split by one is found); tab, line feed and carriage return are separators', () => {
+test('vertical tab and form feed are written out like the other controls (a keyword split by one is found); tab, line feed and carriage return are separators', () => {
   for (const ch of ['\u000b', '\u000c']) {
     for (const [name, fn] of CLEANERS) assert.ok(!fn(`pass${ch}word: CANARYvtff12`).includes('CANARYvtff12'), `U+${ch.charCodeAt(0).toString(16)} through ${name}`);
-    assert.equal(cleanFree(`a${ch}b`), 'ab');
+    assert.equal(cleanFree(`a${ch}b`), `a\\u{${ch.charCodeAt(0).toString(16)}}b`, 'written out, not deleted');
   }
   assert.equal(cleanFree('a\tb'), 'a b'); assert.equal(cleanFree('a\nb'), 'a b'); assert.equal(cleanFree('a\rb'), 'a b');
   for (const ch of ['\t', '\n', '\r']) assert.ok(!cleanFree(`password${ch}CANARYtab123`).includes('CANARYtab123'), 'a separator still separates the keyword from its value');

@@ -4,7 +4,9 @@
 //    when it is only being shown from a token the visitor pasted. Any other claim is signed byte for byte, and shown with its hidden characters made visible
 //    (U+200B appears as \u{200b}), so what is shown is what was signed or presented.
 // The detection is the shared masker (credentials.js -> mask.js -> shared/mask.js). Object keys are built with Object.fromEntries, so a key named __proto__ becomes plain data.
-import { credentialShaped, maskLongRuns, maskText, tidy } from './credentials.js';
+import { credentialShaped, escapeHidden, maskLongRuns, maskText, tidy } from './credentials.js';
+
+export { escapeHidden };
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\p{Cc}\p{Zl}\p{Zp}\u{FFFD}]/gu;
@@ -14,10 +16,7 @@ const HIDDEN_ONE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\p{Cc}\p{Zl}\p{Zp}\u{
 export const credentialProblem = credentialShaped;
 
 // The masked form of a credential-shaped value (what is shown instead of it).
-export const maskedForm = (value, max = 160) => tidy(maskText(maskLongRuns(value))).slice(0, max);
-
-// Hidden characters (zero-width, bidi, format, control) written out as \u{...} so they can be seen. Nothing else is changed.
-export const escapeHidden = (s) => s.replace(HIDDEN, (c) => `\\u{${c.codePointAt(0).toString(16)}}`);
+export const maskedForm = (value, max = 160) => tidy(maskLongRuns(maskText(value))).slice(0, max);
 
 // Why a claim value is not plain ASCII text, for the notice the mint shows. Empty when it is plain.
 export function oddities(v) {

@@ -3,65 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { C, GW, K8S_SUB, get, post, put, withServer } from './helpers.js';
+import { URI, live, sweepAll } from './sweep.js';
 import { SECRETS } from './masking.test.js';
 
 const probeOf = (k, v) => (k === 'pem' ? 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC' : k === 'bearer' ? 'tokenvalue' : k === 'assignment' || k === 'plain' ? 'hunter2hunter2' : k === 'pw' ? 'correcthorse' : k === 'userinfo' ? 's3cr3tpassw0rd' : k === 'authz' ? 'abcdef123456' : v);
 const NEEDLES = Object.fromEntries(Object.entries(SECRETS).map(([k, v]) => [k, { raw: v, probe: probeOf(k, v) }]));
-const live = (extra = {}) => ({ mode: 'live', vertical: 'finance', ...extra });
-const e = encodeURIComponent;
-const URI = 'https://kube-api.cluster-a.example/openid/v1/jwks';
-
-// Types the text v into every field, query, path and header of every endpoint and returns everything that came back.
-async function sweepAll(url, v) {
-  const fed = (x) => ({ issuer: x, subject: x, audience: x, jwksUri: x, jwks: [{ kty: x, kid: x, n: x, e: x, d: x }], pinFromIssuer: x, maxTokenLifetimeSec: x, requiredClaims: { [x]: x, a: x }, allowAnySubject: x, [x]: x });
-  const ident = (x) => ({ name: x, description: x, platform: x, scopes: [x], notAfter: x, enabled: x, federation: fed(x), [x]: x });
-  const bodies = [
-    ['POST', '/api/tokens/mint', live({ mint: { issuer: v, alg: v, generation: v, kid: v, claims: { iss: v, sub: v, aud: v, extra: { [v]: v, a: v } }, times: { iat: v, exp: v, nbf: v }, [v]: v } })],
-    ['POST', '/api/tokens/mint', live({ mint: { issuer: 'kube', kid: v } })],
-    ['POST', '/api/tokens/mint', live({ mint: { issuer: 'kube', claims: { iss: v, sub: v, aud: [v, v], extra: { token: v, note: `x ${v}` } } } })],
-    ['POST', '/api/tokens/mint', live({ mint: { issuer: 'attacker', alg: 'HS256', claims: { sub: v, aud: v } } })],
-    ['POST', '/api/verify', live({ verify: { token: v, identityId: v, service: v, keyId: v, [v]: v } })],
-    ['POST', '/api/verify', live({ verify: { token: v, identityId: 'fid-001', service: 'mcp' } })],
-    ['POST', '/api/verify', live({ verify: { token: v, service: 'mcp' } })],
-    ['POST', '/api/verify', live({ verify: { token: [v, v, v].join(" "), service: 'mcp' } })],
-    ['POST', '/api/clock', live({ clock: { minutes: v, [v]: v } })],
-    ['POST', `/api/issuers/${e(v)}/actions`, live({ action: { action: v, retireOld: v, [v]: v } })],
-    ['POST', '/api/issuers/kube/actions', live({ action: { action: v, retireOld: v } })],
-    ['POST', '/api/identities', live({ identity: ident(v) })],
-    ['POST', '/api/identities', live({ identity: { name: `n ${v}`, description: `d ${v}`, scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW } } })],
-    ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: v, audience: GW } } })],
-    ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: v } } })],
-    ['POST', '/api/identities', live({ identity: { name: 'n', scopes: ['mcp'], platform: 'kubernetes', federation: { issuer: 'https://kube-api.cluster-a.example', jwksUri: URI, subject: 'a:b', audience: GW, requiredClaims: { repo: v } } } })],
-    ['PUT', `/api/identities/${e(v)}`, live({ identity: ident(v) })],
-    ['PUT', '/api/identities/fid-001', live({ identity: ident(v) })],
-    ['PUT', '/api/identities/fid-001', live({ identity: { name: `r ${v}`, federation: { subject: v } } })],
-    ['POST', `/api/identities/${e(v)}/remove`, live({ remove: { [v]: v } })],
-    ['POST', `/api/identities/${e(v)}/refresh`, live({ refresh: { [v]: v } })],
-    ['POST', '/api/keys', live({ key: { name: v, owner: { kind: v, ref: v, [v]: v }, scopes: [v], ownFederation: v, userRef: v, [v]: v } })],
-    ['POST', '/api/keys', live({ key: { name: `k ${v}`, owner: { kind: 'identity', ref: 'fid-001' }, scopes: ['mcp'] } })],
-    ['PUT', `/api/keys/${e(v)}`, live({ key: { enabled: v, scopes: [v], [v]: v } })],
-    ['POST', `/api/keys/${e(v)}/remove`, live({ remove: {} })],
-    ['POST', `/api/keys/${e(v)}/stored-call`, live({ call: { service: v, [v]: v } })],
-    ['PUT', `/api/people/${e(v)}`, live({ person: { active: v, [v]: v } })],
-    ['POST', '/api/sensors', live({ sensor: { name: v, [v]: v } })],
-    ['POST', '/api/sensors', live({ sensor: { name: `s ${v}` } })],
-    ['POST', `/api/sensors/${e(v)}/reports`, live({ report: { node: v, tokenFrom: v, token: v, body: { node: v, findings: [{ kind: v, name: v, namespace: v, pod: v, [v]: v }], [v]: v }, [v]: v } })],
-    ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, body: { node: v, findings: [{ kind: 'ai-agent', name: `n ${v}`, namespace: C.castNs, pod: 'p-0' }] } } })],
-    ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, token: v, body: { findings: [{ kind: 'ai-agent', name: 'n', namespace: C.castNs, pod: 'p-0' }] } } })],
-    ['POST', '/api/sensors/fid-006/reports', live({ report: { node: C.castNode1, body: { findings: [{ kind: 'ai-agent', name: 'n', namespace: v, pod: v }] } } })],
-    ['PUT', `/api/sensors/${e(v)}/policy`, live({ policy: { mode: v, scope: { all: v, namespaces: [v], [v]: v }, actions: { [v]: v, 'ai-agent': v }, [v]: v } })],
-    ['PUT', '/api/sensors/fid-006/policy', live({ policy: { mode: 'audit', scope: { namespaces: [v] }, actions: { 'ai-agent': 'allow', 'mcp-server': 'allow', 'model-server': 'allow' } } })],
-    ['POST', '/api/reset', { [v]: v }],
-  ];
-  const gets = [`/api/state?mode=${e(v)}`, `/api/state?mode=live&vertical=${e(v)}&scenario=${e(v)}`, `/api/state?mode=mock&scenario=${e(v)}`, `/api/story?vertical=${e(v)}`, `/api/diagram?name=${e(v)}&vertical=${e(v)}`, `/api/${e(v)}`, `/api/health?x=${e(v)}`, `/${e(v)}`];
-  const texts = [];
-  for (const [m, p, b] of bodies) { const r = await (m === 'PUT' ? put : post)(url, p, b); texts.push(`${m} #${texts.length} ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
-  for (const g of gets) { const r = await get(url, g); texts.push(`GET ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
-  for (const hv of [v, `a ${v}`]) { const r = await get(url, '/api/state?mode=live', { 'x-workspace': hv.slice(0, 40).replace(/[^\x20-\x7e]/g, '?') }); texts.push(`H ${r.status} ${await r.text()}`); }
-  { const r = await post(url, '/api/clock', live({ clock: { minutes: 1 } }), { traceparent: v.replace(/[^\x20-\x7e]/g, '?') }); texts.push(`T ${r.status} ${await r.text()} ${[...r.headers.values()].join(' ')}`); }
-  return texts.join('\n');
-}
-
 test('typing every credential shape into every field of every endpoint never echoes it', async () => {
   const out = []; const realOut = process.stdout.write.bind(process.stdout); const realErr = process.stderr.write.bind(process.stderr);
   await withServer(async (url) => {

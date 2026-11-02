@@ -46,7 +46,7 @@ test('a long hex run (a hash, a commit id) is ordinary text in a name or a note,
 test('cleanFree: masks, strips control and bidi characters, collapses space, caps, and never throws', () => {
   const v = SECRETS.github;
   assert.ok(!cleanFree(`token ${v}`).includes(v));
-  assert.equal(cleanFree('a\u0000b‮c  d'), 'abc d', 'a control character and a bidi format character are deleted (never turned into a space: a keyword split by one must still be found)');
+  assert.equal(cleanFree('a\u0000b‮c  d'), 'a\\u{0}b\\u{202e}c d', 'a control character and a bidi format character are written out, not deleted: deleting after masking could join the pieces of a secret the masker left alone');
   assert.equal(cleanFree('a\tb\nc\rd'), 'a b c d', 'tab, line feed and carriage return are separators');
   assert.equal(cleanFree('x'.repeat(5000)).length <= MAX_FREE, true);
   assert.equal(cleanFree(undefined), ''); assert.equal(cleanFree(null), ''); assert.equal(cleanFree({}), '[masked:non-string]');
