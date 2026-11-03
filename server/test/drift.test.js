@@ -77,7 +77,7 @@ test('MOCK/LIVE PARITY: replaying every scenario through the HTTP API gives exac
   await withServer(async (url) => {
     let n = 0;
     for (const sc of scenarioList(VERTICALS.finance)) {
-      const ws = `parity-${n++}`; let token = '';
+      const ws = `w-parity-${n++}`; let token = '';
       // every workspace gets the same deterministic random source, as the table was generated with
       for (const st of sc.steps) {
         const params = { ...st.params }; if (st.token) params.token = st.token === 'tampered' ? tamperToken(token) : token;

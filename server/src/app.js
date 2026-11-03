@@ -15,52 +15,65 @@ import { InputError } from './errors.js';
 import { MOCK_TABLE } from './mockTable.js';
 import { createWorkspaces, workspaceFrom } from './workspaces.js';
 import { jwksFor, liveState, mockState, runAction } from './service.js';
-import { maskDeep } from './mask.js';
+import { maskDeep, maskStatic } from './mask.js';
+import { buildMethodTable, charsetProblem, isPageAddress, methodNotAllowed } from './shared/hygiene.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = process.env.WEB_DIST || path.resolve(HERE, '../../web/dist');
 const CONFIG = process.env.CUSTOMER_CONFIG || path.resolve(HERE, '../../customer.config.json');
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+// path -> allowed methods: the ONE route table. It decides the 405 (with Allow) and which paths are the API's own; every route below is registered through on(), so the table
+// cannot drift from the routes. ":name" is one segment; HEAD is allowed wherever GET is.
 export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE } = {}) {
   const app = express();
   app.disable('x-powered-by');
+  app.set('etag', false);
   app.use(hostCheck);
   app.use(sameOriginWrites);
   app.use((_req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
 
-  const api = express.Router();
-  // Only UTF-8 bodies are read: any other declared charset is refused before a parser can decode it.
-  api.use((req, res, next) => {
-    const m = /charset\s*=\s*"?([^;"\s]+)/i.exec(String(req.headers['content-type'] || ''));
-    if (m && !/^utf-8$/i.test(m[1])) return res.status(415).json({ error: 'unsupported_charset' });
-    return next();
+  const ROUTES = {};
+  const METHODS = { table: null };
+  // Only UTF-8 bodies are read: any other declared charset is refused before a parser can decode it. The answer is a fixed body; the header value is never read into it.
+  app.use((req, res, next) => (charsetProblem(req.headers['content-type']) ? res.status(415).json({ error: 'unsupported_charset' }) : next()));
+  // Wrong method on a known path: 405 with Allow, from the route table. A path that is not in the table falls through to the JSON 404 below.
+  app.use('/api', (req, res, next) => {
+    METHODS.table ??= buildMethodTable(ROUTES);
+    const miss = methodNotAllowed(METHODS.table, req.method, `/api${req.path}`);
+    return miss ? res.set('Allow', miss.allow.join(', ')).status(405).json({ error: 'method_not_allowed' }) : next();
   });
+
+  const api = express.Router();
+  const on = (method, route, ...handlers) => { (ROUTES[`/api${route}`] ??= []).push(method.toUpperCase()); api[method](route, ...handlers); };
   api.use(express.json({ limit: '32kb' }));
-  // Defence in depth: every JSON answer is masked for credential-shaped values, whatever path produced it (the one lab-minted token field is exempt: mask.js).
-  api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send(maskDeep(b)); next(); });
+  // Defence in depth: every JSON answer is masked for credential-shaped values, whatever path produced it (the lab's own opaque fields are exempt: mask.js). An answer the lab
+  // wrote entirely itself (the story, the diagrams, the Mock tables: res.locals.lab) is masked as prose, where the words "token" and "password" are words.
+  api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send((res.locals.lab ? maskStatic : maskDeep)(b)); next(); });
   api.use('/health', health.router);
+  ROUTES['/api/health'] = ['GET'];
   const verticalOf = (req) => verticalFrom(req.body?.vertical ?? req.query.vertical);
   const castFor = (req) => loadCast(configFile, verticalOf(req));
   const noStore = (res) => res.set('Cache-Control', 'no-store');
-  const ws = (req, res) => { const id = workspaceFrom(req); if (!id) res.status(400).json({ error: 'bad_workspace' }); return id; };
+  // The workspace id is checked BEFORE anything is created for it: a refused id gets a fixed 400 that does not echo it, and no slot exists. Only a valid write takes a slot.
+  const workspace = (req, res, next) => { const id = workspaceFrom(req); if (!id) return res.status(400).json({ error: 'bad_workspace' }); req.ws = id; return next(); };
 
-  api.get('/story', (req, res) => { noStore(res); res.json(buildStory(castFor(req), verticalOf(req))); });
-  api.get('/diagram', (req, res) => { noStore(res); res.json(buildDiagram(castFor(req), DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0])); });
-  api.get('/info', (_req, res) => { noStore(res); res.json({ mode: defaultMode(), modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
+  on('get', '/story', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildStory(castFor(req), verticalOf(req))); });
+  on('get', '/diagram', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildDiagram(castFor(req), DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0])); });
+  on('get', '/info', (_req, res) => { noStore(res); res.locals.lab = true; res.json({ mode: defaultMode(), modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
 
-  api.get('/state', (req, res) => {
-    const id = ws(req, res); if (!id) return;
+  on('get', '/state', workspace, (req, res) => {
+    const id = req.ws;
     noStore(res);
     const mode = modeOf(req.query.mode); if (!mode) return res.status(400).json({ error: 'bad_mode', detail: 'mode must be mock or live' });
     const vertical = verticalOf(req);
-    if (mode === 'mock') return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) });
+    if (mode === 'mock') { res.locals.lab = true; return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) }); }
     return res.json({ mode, vertical, workspace: id, state: liveState(id, workspaces, vertical, castFor(req)) });
   });
 
   // The public key set an issuer publishes now (public halves only), for the page's own WebCrypto signature check. Same origin, Live only.
-  api.get('/issuers/:id/jwks', (req, res, next) => {
-    const id = ws(req, res); if (!id) return;
+  on('get', '/issuers/:id/jwks', workspace, (req, res, next) => {
+    const id = req.ws;
     noStore(res);
     try {
       if (modeOf(req.query.mode) !== 'live') return res.status(409).json({ error: 'live_only', detail: 'Mock tables hold no keys: the browser check is Live only' });
@@ -70,8 +83,8 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
 
   // Every write: Live only, strict top-level keys, one trace, hops, and the whole fresh state back. Refusals keep their honest HTTP status.
   const write = (method, route, { op, keys, params }) => {
-    api[method](route, (req, res, next) => {
-      const id = ws(req, res); if (!id) return;
+    on(method, route, workspace, (req, res, next) => {
+      const id = req.ws;
       noStore(res);
       try {
         if (!isObj(req.body)) return res.status(400).json({ error: 'bad_request' });
@@ -108,12 +121,28 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
   write('put', '/sensors/:id/policy', { op: 'setPolicy', keys: ['policy'], params: (req) => ({ ...obj(req.body.policy), identityId: idParam(req) }) });
 
   // Reset clears this workspace's engines (identities, keys, issuers, audit, sensors, findings, the clock) and nothing else.
-  api.post('/reset', (req, res) => { const id = ws(req, res); if (!id) return; noStore(res); workspaces.reset(id); return res.json({ reset: 'ok', workspace: id }); });
+  on('post', '/reset', workspace, (req, res) => { noStore(res); workspaces.reset(req.ws); return res.json({ reset: 'ok', workspace: req.ws }); });
   api.use((_req, res) => res.status(404).json({ error: 'not_found' }));
   app.use('/api', api);
-  // Errors become short JSON. Express's default handler would send an HTML stack trace with absolute file paths, and its 404 echoes the path.
+
+  if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) {
+    // Real files only: no directory index, no redirect (so /assets and /assets/ are the JSON 404), dotfiles ignored; anything else falls through.
+    app.use(express.static(WEB_DIST, { index: false, redirect: false, dotfiles: 'ignore', fallthrough: true }));
+    // The page is the answer for the page's OWN addresses only (isPageAddress: no dot in the last segment, no dotfile segment, no empty or encoded-dot segment, not /assets or /api, decodable),
+    // for a GET or HEAD from a client that did not ask for something else. A missing asset (/assets/missing.js, /favicon.ico, /robots.txt), /%, /%zz, /%2e%2e/%2e%2e/etc/passwd are a fixed JSON 404.
+    app.use((req, res, next) => {
+      const accept = req.get('accept');
+      const wantsPage = accept === undefined || /text\/html|\*\/\*/.test(accept);
+      if ((req.method === 'GET' || req.method === 'HEAD') && wantsPage && isPageAddress(req.originalUrl)) return res.sendFile(path.join(WEB_DIST, 'index.html'));
+      return next();
+    });
+  }
+  app.use((_req, res) => res.status(404).json({ error: 'not_found' })); // never Express's default 404, which echoes the path
+  // Errors become short JSON with a fixed code from a whitelist: err.message and err.stack are never sent. Express's default handler would send an HTML stack trace with
+  // absolute file paths. Last in the chain, so an error from the static files or the page lands here too.
   // eslint-disable-next-line no-unused-vars
   app.use((err, _req, res, _next) => {
+    if (res.headersSent) return res.end();
     const status = Number(err?.status || err?.statusCode);
     if (err instanceof InputError) return res.status(err.status).json({ error: err.code });
     if (status === 413) return res.status(413).json({ error: 'payload_too_large' });
@@ -121,14 +150,6 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     if (status >= 400 && status < 500) return res.status(status).json({ error: 'bad_request' });
     return res.status(500).json({ error: 'internal_error' });
   });
-
-  if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) {
-    app.use(express.static(WEB_DIST));
-    // The page's own address (a path with no dot anywhere in it, outside /api and /assets) gets the app. A missing file (/assets/missing.js, /favicon.ico, /robots.txt), a dotfile (/.git/config) and
-    // anything with an extension (/server/src/engine.js, /index.html%00) is a fixed JSON 404 below, never the page with a 200, and the path is never echoed.
-    app.get(/^\/(?!(?:api|assets)(?:\/|$))[^.]*$/, (_req, res) => res.sendFile(path.join(WEB_DIST, 'index.html')));
-  }
-  app.use((_req, res) => res.status(404).json({ error: 'not_found' })); // never Express's default 404, which echoes the path
   return app;
 }
 

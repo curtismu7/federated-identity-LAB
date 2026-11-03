@@ -5,7 +5,7 @@ import { DEFAULT_CAST, VERTICALS } from '../src/cast.js';
 import { AVAILABILITY, BANNER, CLAIM_LABEL, CLAIMS, DISCREPANCIES, FIELD_SOURCES, FIELD_SOURCE_NAMES, MEASURED, NOT_DEMONSTRATED, PRESETS, TALK_TRACK, WHY, WHY_TEXT } from '../src/data.js';
 import { DEPLOYMENT_MODELS, SCOPES } from '../src/catalog.js';
 import { scanHosts, scanKeys } from '../src/safety.js';
-import { findCredentials } from '../src/credentials.js';
+import { maskStatic } from '../src/mask.js';
 
 const s = buildStory(DEFAULT_CAST, 'finance');
 
@@ -75,7 +75,7 @@ test('presets: every preset names a seeded identity, a service and an expectatio
 test('the story names no real host, holds no credential-shaped value, and does not use the word "door"; the Unverified label is on every claim section', () => {
   for (const v of Object.keys(VERTICALS)) {
     const text = JSON.stringify(buildStory(VERTICALS[v], v));
-    assert.deepEqual(scanHosts(text), [], v); assert.deepEqual(scanKeys(text), []); assert.deepEqual(findCredentials(text).filter((x) => x.id !== 'long-blob'), []);
+    assert.deepEqual(scanHosts(text), [], v); assert.deepEqual(scanKeys(text), []); const story = buildStory(VERTICALS[v], v); assert.deepEqual(maskStatic(story), story, 'the shared masker changes nothing in the story');
     assert.ok(!/\bdoor\b/i.test(text), 'say P1 Privilege Agent App, not door');
   }
   assert.ok(NOT_DEMONSTRATED.length >= 6); assert.ok(NOT_DEMONSTRATED.some((n) => /MCP path or the LLM route/.test(n)));

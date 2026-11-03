@@ -19,7 +19,7 @@ test('an unknown diagram name falls back to the first, never an error', () => { 
 test('the diagrams name no non-reserved host', () => { assert.ok(!/https?:\/\/(?!.*\.example)/.test(JSON.stringify(DIAGRAM_NAMES.map((n) => rawDiagram(n))))); });
 
 test('the response mask leaves every diagram, in every vertical, and the whole Mock table untouched (prose must not read as an assignment)', async () => {
-  const { maskDeep } = await import('../src/mask.js'); const { MOCK_TABLE } = await import('../src/mockTable.js');
+  const { maskStatic: maskDeep } = await import('../src/mask.js'); const { MOCK_TABLE } = await import('../src/mockTable.js');
   for (const v of Object.values(VERTICALS)) for (const n of DIAGRAM_NAMES) { const d = buildDiagram(v, n); assert.deepEqual(maskDeep(d), d, n); }
   assert.deepEqual(maskDeep(MOCK_TABLE), MOCK_TABLE);
 });

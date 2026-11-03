@@ -109,4 +109,4 @@ Everything here is a Ping release claim, unverified on our tenant. Two things to
 - The eBPF sensor. The reports are simulated, and the claim names the lab reads (node, pod, repository and so on) are the lab's flat names, not the exact shape of a real Kubernetes or GitHub token.
 - How the real gateway treats clock skew, key-set rate limits on unknown-kid refreshes, JWKS caching headers, algorithm families other than RS256, or end-user binding (SubjectBinding and UserClaim).
 - Per-user credentials from the vault for a workload caller (that needs a human end user), and token-pass.
-- Real credentials. The lab holds none. Anything credential-shaped you type is masked and never kept (a lab-written heuristic).
+- Real credentials. The lab holds none. Anything credential-shaped you type is masked and never kept (the shared masker, version 1.4.0, a heuristic).

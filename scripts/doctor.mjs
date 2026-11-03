@@ -24,7 +24,7 @@ try {
   const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health }) });
   try {
-    const base = url.replace(/\/$/, ''); const h = { 'content-type': 'application/json', origin: base, 'x-workspace': 'doctor' };
+    const base = url.replace(/\/$/, ''); const h = { 'content-type': 'application/json', origin: base, 'x-workspace': 'w-doctor' };
     const call = async (method, p, b) => { const r = await fetch(base + p, { method, headers: h, body: JSON.stringify({ mode: 'live', vertical: 'finance', ...b }) }); return { status: r.status, body: await r.json() }; };
     const cast = (await (await fetch(`${base}/api/story?vertical=finance`)).json()).cast;
     const minted = await call('POST', '/api/tokens/mint', { mint: { issuer: 'kube', claims: { sub: `system:serviceaccount:${cast.castNs}:${cast.castAgent}`, aud: `https://gateway.${cast.castHost}.example` } } });

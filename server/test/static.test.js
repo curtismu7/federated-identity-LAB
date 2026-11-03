@@ -29,12 +29,12 @@ async function withApp(fn) {
 
 test('the page answers its own addresses; a missing file, a dotfile and anything with an extension is a fixed JSON 404, never the page with a 200 (S3)', async () => {
   await withApp(async (url) => {
-    for (const p of ['/', '/verify', '/identities', '/some/deep/route', '/api-docs', '/apix', '/%2e%2e/etc/passwd']) {
+    for (const p of ['/', '/verify', '/identities', '/some/deep/route', '/a.b/c', '/api-docs', '/apix']) {
       const r = await raw(url, p); assert.equal(r.status, 200, p); assert.match(r.type, /text\/html/, p); assert.match(r.text, /PAGE-MARKER/, p);
     }
     const asset = await raw(url, '/assets/app.js'); assert.equal(asset.status, 200); assert.match(asset.type, /javascript/); assert.match(asset.text, /ASSET-MARKER/);
     assert.equal((await raw(url, '/index.html')).status, 200, 'a real file is still served');
-    for (const p of ['/assets/missing.js', '/favicon.ico', '/robots.txt', '/index.html%00', '/.git/config', '/server/src/engine.js', '/.secret', '/assets/', '/assets/..%2f..%2fpackage.json', '/a.b/c', '/x/.env', '/package.json', '/api', '/api/', '/api/nope', '/api/x.js']) {
+    for (const p of ['/assets/missing.js', '/favicon.ico', '/robots.txt', '/index.html%00', '/.git/config', '/server/src/engine.js', '/.secret', '/assets/', '/assets/..%2f..%2fpackage.json', '/x/.env', '/package.json', '/api', '/api/', '/api/nope', '/api/x.js', '/assets', '/%', '/%zz', '/%2e%2e/etc/passwd', '/%2e%2e/%2e%2e/etc/passwd', '/a//b']) {
       const r = await raw(url, p);
       assert.ok([400, 404].includes(r.status), `${p} -> ${r.status}`);
       assert.ok(!r.text.includes('PAGE-MARKER') && !r.text.includes('DOTFILE-MARKER') && !r.text.includes('ASSET-MARKER') , `${p} is not the page`);

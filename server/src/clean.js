@@ -1,37 +1,22 @@
 // Visitor-supplied structure made safe to show and to keep. Two different jobs, kept apart:
-//  * names, descriptions and notes (cleanFree, in credentials.js) are folded and masked: nothing depends on their exact bytes;
-//  * CLAIM values and names, which the lab compares EXACTLY, are never rewritten. A claim that looks like a credential (after folding: NFKC, hidden characters deleted,
-//    percent-decoding) is REFUSED when minting, and masked when it is only being shown from a token the visitor pasted. Any other claim is signed byte for byte, and
-//    shown with its hidden characters made visible (U+200B appears as \u{200b}), so what is shown is what was signed or presented.
-// A "blob" here is a run of 24 or more letters, digits, + _ = with no separator (the generic 32-character detector would mask a legitimate SPIFFE ID), plus every
-// specific detector. It is a heuristic (README says so). Object keys are built with Object.fromEntries, so a key named __proto__ becomes plain data.
-import { DETECTORS, fold, maskSpans } from './credentials.js';
+//  * names, descriptions and notes (cleanFree, in credentials.js) are masked: nothing depends on their exact bytes;
+//  * CLAIM values and names, which the lab compares EXACTLY, are never rewritten. A claim that looks like a credential (after folding) is REFUSED when minting, and masked
+//    when it is only being shown from a token the visitor pasted. Any other claim is signed byte for byte, and shown with its hidden characters made visible
+//    (U+200B appears as \u{200b}), so what is shown is what was signed or presented.
+// The detection is the shared masker (credentials.js -> mask.js -> shared/mask.js). Object keys are built with Object.fromEntries, so a key named __proto__ becomes plain data.
+import { credentialShaped, escapeHidden, maskLongRuns, maskText, tidy } from './credentials.js';
+
+export { escapeHidden };
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-const SPECIFIC = DETECTORS.filter((d) => d.id !== 'long-blob');
-const BLOB = /[A-Za-z0-9+_=]{24,}/g;
 const HIDDEN = /[\p{Default_Ignorable_Code_Point}\p{Cf}\p{Cc}\p{Zl}\p{Zp}\u{FFFD}]/gu;
 const HIDDEN_ONE = /[\p{Default_Ignorable_Code_Point}\p{Cf}\p{Cc}\p{Zl}\p{Zp}\u{FFFD}]/u;
-const BLOB_ONE = /[A-Za-z0-9+_=]{24,}/;
-const PRE_CAP = 40000;
 
-// True when the FOLDED text holds anything credential-shaped (a hidden-character, percent-encoded or fullwidth disguise does not help).
-export function credentialProblem(value) {
-  const flat = fold(value);
-  return SPECIFIC.some((d) => flat.search(d.re) >= 0) || BLOB_ONE.test(flat);
-}
+// True when the value holds anything credential-shaped (folded: a hidden-character, percent-encoded or fullwidth disguise does not help).
+export const credentialProblem = credentialShaped;
 
-// The folded and masked form of a credential-shaped value (what is shown instead of it).
-export function maskedForm(value, max = 160) {
-  const flat = fold(value);
-  const spans = [];
-  for (const d of SPECIFIC) { d.re.lastIndex = 0; for (const m of flat.matchAll(d.re)) spans.push({ start: m.index, end: m.index + m[0].length, id: d.id }); }
-  for (const m of flat.matchAll(BLOB)) spans.push({ start: m.index, end: m.index + m[0].length, id: 'long-blob' });
-  return maskSpans(flat, spans).replace(/\s+/g, ' ').trim().slice(0, max);
-}
-
-// Hidden characters (zero-width, bidi, format, control) written out as \u{...} so they can be seen. Nothing else is changed.
-export const escapeHidden = (s) => s.replace(HIDDEN, (c) => `\\u{${c.codePointAt(0).toString(16)}}`);
+// The masked form of a credential-shaped value (what is shown instead of it).
+export const maskedForm = (value, max = 160) => tidy(maskLongRuns(maskText(value))).slice(0, max);
 
 // Why a claim value is not plain ASCII text, for the notice the mint shows. Empty when it is plain.
 export function oddities(v) {
@@ -45,7 +30,7 @@ export function oddities(v) {
 
 // A visitor string for display: credential-shaped -> masked; otherwise exactly as given with hidden characters visible. Never trimmed, never normalised.
 export function reveal(value, max = 160) {
-  const s = String(value ?? '').slice(0, PRE_CAP);
+  const s = String(value ?? '');
   return (credentialProblem(s) ? maskedForm(s, max) : escapeHidden(s)).slice(0, max);
 }
 

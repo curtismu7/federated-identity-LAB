@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DETECTORS, MAX_FREE, cleanFree, findCredentials, maskText } from '../src/credentials.js';
-import { reveal } from '../src/clean.js';
+import { MAX_FREE, cleanFree, maskText } from '../src/credentials.js';
+import { DETECTOR_IDS } from '../src/shared/mask.js';
+import { credentialProblem, reveal } from '../src/clean.js';
 import { maskDeep, maskResponseText } from '../src/mask.js';
-import { C, GW, newEngine } from './helpers.js';
+import { C, GW, findCredentials, newEngine } from './helpers.js';
 
 // Credential-shaped test values are assembled at run time, so no such string sits in the repository.
 export const SECRETS = {
@@ -18,7 +19,6 @@ export const SECRETS = {
   bearer: ['Bear', 'er ', 'abcdEFGH1234567890.tokenvalue'].join(''),
   assignment: ['pass', 'word=', 'hunter2hunter2'].join(''),
   blob: 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5',
-  hex: 'deadbeef'.repeat(6),
   plain: ['my pass', 'word is hunter2hunter2'].join(''),
   pw: ['p', 'w: correcthorsebattery'].join(''),
   userinfo: ['https://', 'user:s3cr3tpassw0rd@host.example/x'].join(''),
@@ -33,16 +33,23 @@ test('every credential shape is found and masked', () => {
     assert.ok(!out.includes(v), `${name} is masked`);
     assert.match(out, /\[masked:/);
   }
-  assert.ok(DETECTORS.length >= 10);
+  assert.ok(DETECTOR_IDS.length >= 10);
+});
+
+test('a long hex run (a hash, a commit id) is ordinary text in a name or a note, but a claim or a stored value of 24 or more letters and digits is refused', () => {
+  const hex = 'deadbeef'.repeat(6);
+  assert.equal(cleanFree(`commit ${hex}`), `commit ${hex}`);
+  assert.equal(credentialProblem(hex), true);
+  assert.equal(credentialProblem('deadbeef'.repeat(3)), true); assert.equal(credentialProblem(`${'deadbeef'.repeat(2)}deadbee`), false, '23 characters');
 });
 
 test('cleanFree: masks, strips control and bidi characters, collapses space, caps, and never throws', () => {
   const v = SECRETS.github;
   assert.ok(!cleanFree(`token ${v}`).includes(v));
-  assert.equal(cleanFree('a\u0000b‮c  d'), 'abc d', 'a control character and a bidi format character are deleted (never turned into a space: a keyword split by one must still be found)');
+  assert.equal(cleanFree('a\u0000b‮c  d'), 'a\\u{0}b\\u{202e}c d', 'a control character and a bidi format character are written out, not deleted: deleting after masking could join the pieces of a secret the masker left alone');
   assert.equal(cleanFree('a\tb\nc\rd'), 'a b c d', 'tab, line feed and carriage return are separators');
   assert.equal(cleanFree('x'.repeat(5000)).length <= MAX_FREE, true);
-  assert.equal(cleanFree(undefined), ''); assert.equal(cleanFree(null), ''); assert.equal(cleanFree({}), '[object Object]');
+  assert.equal(cleanFree(undefined), ''); assert.equal(cleanFree(null), ''); assert.equal(cleanFree({}), '[masked:non-string]');
   assert.equal(cleanFree('I need read access to review the change for the release'), 'I need read access to review the change for the release', 'ordinary text is left alone');
 });
 
@@ -149,7 +156,7 @@ test('percent-encoded secrets (once, twice, three times, and fullwidth percent s
 });
 
 test('keyword plus JSON-key secrets and glued assignments are masked, whatever the quoting', () => {
-  const cases = [['{"password":"x"}', 'x"'], ['{"token":"abc"}', 'abc'], ["{'secret':'hunter22'}", 'hunter22'], ['a","b":"password: zq81xkzq', 'zq81xkzq'], ['xpassword=zq81xkzq', 'zq81xkzq'], ['{"api_key":"k"}', ':"k'], ['{"client-secret": "s3cr3tvalue"}', 's3cr3tvalue'], ['pw:zq81xkzq', 'zq81xkzq'], ['"credential":"c"', ':"c'], ['{"password":"x" }', ':"x'], ['{ "secret" : "q" , "n": 1 }', ':"q'], ["{'token':'z' }", ":'z"], ['{"token":7 }', ':7'], ['{"password":9 , "a":1}', ':9'], ['{"passphrase" : "correct horse"}', 'correct']];
+  const cases = [['{"password":"x"}', 'x"'], ['{"token":"abc"}', 'abc'], ["{'secret':'hunter22'}", 'hunter22'], ['a","b":"password: zq81xkzq', 'zq81xkzq'], ['xpassword=zq81xkzq', 'zq81xkzq'], ['{"api_key":"k"}', ':"k'], ['{"client-secret": "s3cr3tvalue"}', 's3cr3tvalue'], ['pw:zq81xkzq', 'zq81xkzq'], ['"credential":"c"', ':"c'], ['{"password":"x" }', ':"x'], ['{ "secret" : "q" , "n": 1 }', ':"q'], ["{'token':'z' }", ":'z"], ['{"passphrase" : "correct horse"}', 'correct']];
   for (const [text, probe] of cases) for (const [name, fn] of ALL) assert.ok(!fn(text).includes(probe), `${text} through ${name}`);
   assert.equal(cleanFree('the password policy is documented'), 'the password policy is documented', 'a word on its own is not a secret');
 });

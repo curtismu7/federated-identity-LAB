@@ -28,7 +28,8 @@ test('customer.config.json is git-ignored, and its example only sets the three c
 });
 
 test('no shipped text names a real customer, company or tenant', () => {
-  const skip = new Set(['node_modules', 'dist', '.git', 'package-lock.json']); const hits = [];
+  // corpus: the shared masker's generated test data (random fragments; the short word 'uhg' occurs in them by chance), not shipped text.
+  const skip = new Set(['node_modules', 'dist', '.git', 'package-lock.json', 'corpus']); const hits = [];
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir)) {
       if (skip.has(name)) continue;
