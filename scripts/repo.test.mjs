@@ -60,10 +60,11 @@ test('package.json requires Node 26 and the Dockerfile uses a Node 26 base', () 
 
 test('README follows the README standard: title ends in LAB, plain Tier and Repo lines, the port text, a run-from-a-clone section; no internal names', () => {
   const r = read('README.md');
-  assert.match(r.split('\n')[0], /^# .* LAB$/); assert.match(r, /^Tier: Demo$/m); assert.match(r, /^Repo: https:\/\/github\.com\/ping-sandbox\/federated-identity-LAB$/m); assert.match(r, /^Catalog: D107$/m);
+  assert.match(r.split('\n')[0], /^# .* LAB$/); assert.match(r, /^Tier: Demo$/m); assert.match(r, /^Repo: https:\/\/github.com\/curtismu7\/federated-identity-LAB$/m); assert.match(r, /^Catalog: D107$/m);
   for (const h of ['Run from a clone', 'Settings file', 'What to do if the port is taken', 'Mock and live modes', 'Health, doctor and reset', 'Docker', 'Tests', 'Troubleshooting', 'Ownership', 'What is simulated']) assert.match(r, new RegExp(`^## .*${h}`, 'mi'), h);
   assert.match(r, /lsof -iTCP:7400 -sTCP:LISTEN -n -P/); assert.match(r, /PORT=<other port> npm start/);
-  assert.ok(!/ping-devops|cmuir|curtismu/i.test(r)); assert.ok(!/\bdoor\b/i.test(r));
+  assert.ok(!/ping-devops|cmuir/i.test(r)); // the owner org (curtismu7) is allowed: it is the Repo line
+  assert.ok(!/\bdoor\b/i.test(r));
 });
 
 test('docs never use the word "door"', () => { for (const f of ['README.md', 'CLAUDE.md', 'docs/talk-track.md', 'docs/safety.md']) assert.ok(!/\bdoor\b/i.test(read(f)), f); });

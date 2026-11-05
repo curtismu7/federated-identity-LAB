@@ -3,7 +3,7 @@
 A simulation of Ping's Federated Identity and Self-Hosted Agents release claims, with real local token verification: platform-issued short-lived tokens bound exactly to one issuer, one subject and one audience, enforced lifetimes, key-set refresh and outage handling, a key owned by an identity, revocation, and a Kubernetes sensor that is verified, not vouched.
 
 Tier: Demo
-Repo: https://github.com/ping-sandbox/federated-identity-LAB
+Repo: https://github.com/curtismu7/federated-identity-LAB
 Catalog: D107
 
 **Tier: Demo.** Source: the Ping ID4AI Workforce H2 2026 deck, slides 35, 40, 41 (and 44 for the sensor), release 2026-11-02. **Every product claim is a Ping release claim, UNVERIFIED on our tenant.** Nothing here calls a real gateway, issuer, cluster, identity provider or tenant, and nothing leaves your machine.
@@ -79,7 +79,7 @@ What the lab itself decides:
 Prerequisites: Node 26 or newer. Docker only if you use the Docker form. Mock mode works with no setup at all: no tenant, no credentials, no settings file.
 
 ```
-git clone https://github.com/ping-sandbox/federated-identity-LAB.git
+git clone https://github.com/curtismu7/federated-identity-LAB.git
 cd federated-identity-LAB
 npm ci
 npm run build
