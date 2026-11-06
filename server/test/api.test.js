@@ -192,3 +192,13 @@ test('only UTF-8 request bodies are read: any other declared charset is 415 befo
     const r = await send('application/json; charset=utf-16', ok); assert.ok(!/utf-16/.test(r.text), 'the charset is not echoed');
   });
 });
+
+test('GET /api/shelf answers the shelf URL (null when unconfigured)', async () => {
+  await withServer(async (url) => {
+    const res = await fetch(`${url}/api/shelf`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.deepEqual(Object.keys(body), ['shelfUrl']);
+    assert.equal(body.shelfUrl, null);
+  }, { env: {} });
+});

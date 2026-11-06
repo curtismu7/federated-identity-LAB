@@ -21,10 +21,10 @@ export const k8sVerify = (e, over = {}, v = {}) => e.verify({ token: k8sMint(e, 
 export const codeOf = (fn) => { try { fn(); return null; } catch (e) { if (e.code) return e.code; throw e; } };
 export const statusOf = (fn) => { try { fn(); return null; } catch (e) { if (e.status) return e.status; throw e; } };
 
-export async function withServer(fn, { configFile = '/nonexistent/customer.config.json', workspaces = createWorkspaces({ makeRand: () => seededRand('http') }) } = {}) {
+export async function withServer(fn, { configFile = '/nonexistent/customer.config.json', workspaces = createWorkspaces({ makeRand: () => seededRand('http') }), env } = {}) {
   const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
   await health.ready;
-  const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, configFile, workspaces }) });
+  const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, configFile, workspaces, ...(env ? { env } : {}) }) });
   try { await fn(url.replace(/\/$/, ''), { workspaces }); } finally { health.stop(); await new Promise((res) => server.close(res)); }
 }
 export const post = (url, path, body, headers = {}) => fetch(`${url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', origin: url, ...headers }, body: JSON.stringify(body) });

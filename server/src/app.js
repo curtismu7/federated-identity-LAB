@@ -16,6 +16,7 @@ import { MOCK_TABLE } from './mockTable.js';
 import { createWorkspaces, workspaceFrom } from './workspaces.js';
 import { jwksFor, liveState, mockState, runAction } from './service.js';
 import { maskDeep, maskStatic } from './mask.js';
+import { shelfInfo } from './shelfLink.js';
 import { buildMethodTable, charsetProblem, isPageAddress, methodNotAllowed } from './shared/hygiene.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +26,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // path -> allowed methods: the ONE route table. It decides the 405 (with Allow) and which paths are the API's own; every route below is registered through on(), so the table
 // cannot drift from the routes. ":name" is one segment; HEAD is allowed wherever GET is.
-export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE } = {}) {
+export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', false);
@@ -51,6 +52,7 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
   // wrote entirely itself (the story, the diagrams, the Mock tables: res.locals.lab) is masked as prose, where the words "token" and "password" are words.
   api.use((_req, res, next) => { const send = res.json.bind(res); res.json = (b) => send((res.locals.lab ? maskStatic : maskDeep)(b)); next(); });
   api.use('/health', health.router);
+  api.get('/shelf', (_req, res) => { noStore(res); res.json(shelfInfo(env)); });
   ROUTES['/api/health'] = ['GET'];
   const verticalOf = (req) => verticalFrom(req.body?.vertical ?? req.query.vertical);
   const castFor = (req) => loadCast(configFile, verticalOf(req));
