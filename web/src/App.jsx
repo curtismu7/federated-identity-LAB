@@ -11,7 +11,7 @@ import TalkTrack from "./components/TalkTrack";
 import LastAction from "./components/LastAction";
 import ErrorBoundary from "./components/ErrorBoundary";
 import useLab from "./hooks/useLab";
-import { getJson, resetWorkspace } from "./api";
+import { getJson, postJson, resetWorkspace } from "./api";
 
 export const TABS = [
   { id: "identities", label: "Federated Identity" },
@@ -26,11 +26,9 @@ export const TABS = [
 // The banner is never blank and never claims one mode before it knows: until the story answers it says both, honestly.
 const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing here calls a real tenant, gateway, issuer or cluster.";
 export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode (loopback only, no outbound network). ${TAIL}`;
-const MODE_KEY = "fid.mode";
 const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
 
 const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };
-const savedMode = () => { try { const m = window.localStorage.getItem(MODE_KEY); return m === "live" || m === "mock" ? m : null; } catch { return null; } };
 
 const THEME_KEY = "fedid.theme";
 const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
@@ -65,7 +63,7 @@ export default function App() {
   // One number per (vertical, mode) choice, new on every change (even back to an earlier choice): work started under one choice can never land in a later one.
   const ctxGen = useMemo(() => ++CONTEXT_COUNTER, [vertical, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { getJson("/api/info").then((i) => setModeState((m) => m || savedMode() || i.mode), () => setModeState((m) => m || savedMode() || "mock")); }, []);
+  useEffect(() => { getJson("/api/info").then((i) => setModeState((m) => m || i.mode || i.source), () => setModeState((m) => m || "mock")); }, []);
   useEffect(() => {
     let live = true; // a late story for a vertical the visitor has already left is dropped
     getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
@@ -77,7 +75,15 @@ export default function App() {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
-  const setMode = (m) => { setModeState(m); try { window.localStorage.setItem(MODE_KEY, m); } catch { /* storage blocked */ } };
+  // Rule 19: switching is a server call (POST /api/mode with exactly {source}), then the data reloads so the banner,
+  // mode chip and every tab reflect the mode the server answered with.
+  const [modeError, setModeError] = useState(null);
+  const setMode = async (m) => {
+    setModeError(null);
+    const r = await postJson("/api/mode", { source: m === "live" ? "real" : "mock" });
+    if (!r.ok) { setModeError(r.body?.detail || r.body?.error || `HTTP ${r.status}`); return; }
+    setModeState(r.body?.mode || m);
+  };
   const select = (id) => { setTab(id); try { window.history.replaceState(null, "", `#${id}`); } catch { /* ignore */ } };
   // The Models tab's Try buttons: open Verify with that preset (or another tab).
   const tryPreset = useCallback((presetId, toTab = "verify") => { if (presetId) setPending({ id: presetId, n: Date.now() }); select(toTab); }, []);
@@ -124,6 +130,7 @@ export default function App() {
     <div className={`app${presenter ? " app--presenter" : ""}`}>
       <header>
         <p className="banner" role="status" data-state={mode === "live" ? "live" : "mock"} data-testid="banner">{banner}</p>
+        {modeError && <p className="app-error" role="alert" data-testid="mode-error">{modeError}</p>}
         <div className="head">
           <div>
             <h1 className="head__title">Federated Identity LAB</h1>

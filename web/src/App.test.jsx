@@ -29,7 +29,8 @@ beforeAll(async () => {
   };
 });
 afterAll(async () => { globalThis.fetch = realFetch; await new Promise((r) => server.close(r)); });
-beforeEach(() => { cleanup(); forgetWorkspace(); seen = []; gate = () => null; consumed = []; try { window.localStorage.clear(); window.sessionStorage.clear(); } catch { /* ignore */ } window.location.hash = ""; });
+beforeEach(async () => { cleanup(); forgetWorkspace(); seen = []; gate = () => null; consumed = []; try { window.localStorage.clear(); window.sessionStorage.clear(); } catch { /* ignore */ } window.location.hash = ""; // rule 19: the server holds the mode, so every test starts from mock
+  await realFetch(`${base}/api/mode`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ source: "mock" }) }); });
 
 const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
@@ -84,13 +85,21 @@ describe("shell", () => {
     }
   });
 
-  it("the choice of mode is remembered, and a blocked storage never breaks the page", async () => {
-    await mount(); await click("mode-live");
-    expect(window.localStorage.getItem("fid.mode")).toBe("live");
+  it("rule 19: the mode is server-backed — each switch POSTs /api/mode with exactly {source}, the mode survives a reload, and storage is not needed", async () => {
+    await mount();
+    seen.length = 0;
+    await click("mode-live");
+    expect(seen.some((r) => r.url.endsWith("/api/mode") && r.body === JSON.stringify({ source: "real" }))).toBe(true);
     cleanup(); render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T);
+    expect(window.localStorage.getItem("fid.mode")).toBeNull();
+    // a bad body is refused 400
+    const r = await fetch(`${base}/api/mode`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ source: "live" }) });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error).toBe("bad_mode");
+    // a blocked storage never breaks the page: the server holds the mode
     cleanup(); const desc = Object.getOwnPropertyDescriptor(window, "localStorage");
     Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new Error("blocked"); } });
-    try { render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T); await click("mode-live"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); }
+    try { render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); await click("mode-mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T); }
     finally { Object.defineProperty(window, "localStorage", desc); }
   });
 

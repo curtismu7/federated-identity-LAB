@@ -62,7 +62,22 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
 
   on('get', '/story', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildStory(castFor(req), verticalOf(req))); });
   on('get', '/diagram', (req, res) => { noStore(res); res.locals.lab = true; res.json(buildDiagram(castFor(req), DIAGRAM_NAMES.includes(req.query.name) ? req.query.name : DIAGRAM_NAMES[0])); });
-  on('get', '/info', (_req, res) => { noStore(res); res.locals.lab = true; res.json({ mode: defaultMode(), modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
+  // Rule 19: the server holds the Mock/Real mode. Both are available: mock reads generated tables, live drives the loopback engine.
+  // The wire value of source is mock|real; this lab's internal mode is mock|live, and real means live here.
+  let current = defaultMode();
+  const toSource = (m) => (m === 'live' ? 'real' : m);
+  const toMode = (s) => (s === 'real' ? 'live' : s);
+  on('get', '/info', (_req, res) => { noStore(res); res.locals.lab = true; res.json({ mode: current, source: toSource(current), realAvailable: true, realReason: null, modes: ['mock', 'live'], simulated: true, release: '2026-11-02', unverified: true }); });
+  // Rule 19: switching is server-side. The body is exactly { source: "mock" | "real" }.
+  on('post', '/mode', (req, res) => {
+    noStore(res);
+    const b = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const next = b.source;
+    if (next !== 'mock' && next !== 'real') return res.status(400).json({ error: 'bad_mode', detail: 'source must be exactly "mock" or "real"' });
+    if (!Object.keys(b).every((k) => k === 'source')) return res.status(400).json({ error: 'unknown_field', detail: 'the body takes only source' });
+    current = toMode(next);
+    return res.json({ mode: current, source: toSource(current), realAvailable: true, realReason: null });
+  });
 
   on('get', '/state', workspace, (req, res) => {
     const id = req.ws;
