@@ -10,6 +10,7 @@ services:
     ports:
       - "127.0.0.1:${HOST_PORT:-7400}:7400"
     environment:
+      SHELF_URL: ${SHELF_URL:-http://127.0.0.1:4400}
       PORT: "7400"
       FIDLAB_BIND: 0.0.0.0
       FID_LAB_MODE: ${FID_LAB_MODE:-mock}
