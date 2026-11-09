@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { hostCheck, sameOriginWrites } from './safety.js';
+import { makeHostCheck, makeSameOriginWrites } from './safety.js';
 import { createHealth } from './health.js';
 import { loadCast, verticalFrom } from './cast.js';
 import { defaultMode, modeOf } from './config.js';
@@ -26,12 +26,12 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // path -> allowed methods: the ONE route table. It decides the 405 (with Allow) and which paths are the API's own; every route below is registered through on(), so the table
 // cannot drift from the routes. ":name" is one segment; HEAD is allowed wherever GET is.
-export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env } = {}) {
+export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env, proxyHosts = new Set() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', false);
-  app.use(hostCheck);
-  app.use(sameOriginWrites);
+  app.use(makeHostCheck(proxyHosts));
+  app.use(makeSameOriginWrites(proxyHosts));
   app.use((_req, res, next) => { res.set('X-Content-Type-Options', 'nosniff'); next(); });
 
   const ROUTES = {};

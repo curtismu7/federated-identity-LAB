@@ -12,6 +12,8 @@ services:
     environment:
       SHELF_URL: ${SHELF_URL:-http://127.0.0.1:4400}
       PORT: "7400"
+      # The name the family lab-proxy (https://local.ping-devops.com:8443) sends in Host; loopback is always accepted.
+      LAB_ALLOWED_HOSTS: ${LAB_ALLOWED_HOSTS:-federated-identity-lab.local.ping-devops.com}
       FIDLAB_BIND: 0.0.0.0
       FID_LAB_MODE: ${FID_LAB_MODE:-mock}
     read_only: true
