@@ -13,6 +13,8 @@ import { keyAt } from "../../server/src/keys.js";
 import { MAX_TOKEN as SERVER_MAX_TOKEN } from "../../server/src/jwt.js";
 import { validWorkspaceId as serverValid } from "../../server/src/workspaces.js";
 import App from "./App";
+
+const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
 import { MAX_TOKEN, compareResults, verifyInBrowser } from "./browserVerify";
 import { MIN_ZOOM, fitFor } from "./components/PatternDiagram";
 import { forgetWorkspace, validWorkspaceId, workspaceFetch, workspaceId } from "./workspace";
@@ -95,7 +97,7 @@ describe("one token cap for the browser and the server (S4)", () => {
 
   it("the Verify page counts the token's characters, says when it is over the limit, cuts nothing, and the browser check and the gateway agree on the long token", async () => {
     render(<App />); await screen.findByTestId("identities", {}, T);
-    await userEvent.click(screen.getByTestId("mode-live")); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T);
+    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T);
     await userEvent.click(screen.getByRole("tab", { name: "Verify" }));
     await waitFor(() => expect(screen.getByTestId("mint")).toBeEnabled(), T);
     const long = tok(HDR, payload(new Engine(C), { big: "A".repeat(4200) }));

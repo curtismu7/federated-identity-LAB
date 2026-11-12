@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import fs from "node:fs";
 import ShelfLink from "./components/ShelfLink";
 import IdentitiesTab from "./components/IdentitiesTab";
 import VerifyTab from "./components/VerifyTab";
@@ -11,6 +12,7 @@ import TalkTrack from "./components/TalkTrack";
 import LastAction from "./components/LastAction";
 import ErrorBoundary from "./components/ErrorBoundary";
 import useLab from "./hooks/useLab";
+import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import { getJson, postJson, resetWorkspace } from "./api";
 
 export const TABS = [
@@ -31,13 +33,15 @@ const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
 const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };
 
 const THEME_KEY = "fedid.theme";
-const THEMES = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]];
 function initialTheme() {
   try { const t = localStorage.getItem(THEME_KEY); if (t === "light" || t === "dark") return t; } catch { /* storage blocked */ }
   return "auto";
 }
 
 let CONTEXT_COUNTER = 0;
+
+// Version for the TopMenu About button: read once from the lab root package.json (same source the server's health uses).
+const LAB_VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8")).version || null; } catch { return null; } })();
 
 export default function App() {
   const [vertical, setVertical] = useState("finance");
@@ -52,12 +56,17 @@ export default function App() {
   const [pending, setPending] = useState(null);
   const [verifyUi, setVerifyUi] = useState(null);
   const [theme, setTheme] = useState(initialTheme);
+  const [fontStep, setFontStep] = useState(() => { try { const f = localStorage.getItem("fedid.font"); return ["S", "M", "L"].includes(f) ? f : "M"; } catch { return "M"; } });
   const pickTheme = (next) => {
     try { if (next === "auto") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, next); } catch { /* not remembered */ }
     setTheme(next);
   };
   // The picker only sets data-theme; the shared stylesheet does the rest ("auto" follows the system setting).
   useEffect(() => { if (theme === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = theme; }, [theme]);
+  useEffect(() => {
+    applyFontSize(fontStep);
+    try { localStorage.setItem("fedid.font", fontStep); } catch { /* not remembered */ }
+  }, [fontStep]);
   const tabsRef = useRef(null);
   const lab = useLab({ mode, vertical, scenario: scenarioId });
   // One number per (vertical, mode) choice, new on every change (even back to an earlier choice): work started under one choice can never land in a later one.
@@ -80,7 +89,8 @@ export default function App() {
   const [modeError, setModeError] = useState(null);
   const setMode = async (m) => {
     setModeError(null);
-    const r = await postJson("/api/mode", { source: m === "live" ? "real" : "mock" });
+    const source = m === "live" || m === "real" ? "real" : "mock"; // TopMenu sends the wire value "real"; the lab's internal name is "live"
+    const r = await postJson("/api/mode", { source });
     if (!r.ok) { setModeError(r.body?.detail || r.body?.error || `HTTP ${r.status}`); return; }
     setModeState(r.body?.mode || m);
   };
@@ -137,26 +147,19 @@ export default function App() {
             {!presenter && story && <p className="head__intro">{story.intro}</p>}
           </div>
           <div className="head__tools">
-            <ShelfLink />
-            <div className="seg" role="group" aria-label="Mode">
-              <button type="button" aria-pressed={mode === "mock"} onClick={() => setMode("mock")} data-testid="mode-mock">Mock</button>
-              <button type="button" aria-pressed={mode === "live"} onClick={() => setMode("live")} data-testid="mode-live">Live</button>
-            </div>
-            <label className="shell-theme">Theme
-              <select value={theme} onChange={(e) => pickTheme(e.target.value)}>
-                {THEMES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              </select>
-            </label>
-            <span className="chip" data-testid="mode">Mode: {mode || "..."}{mode === "live" ? " (local engine, loopback)" : mode === "mock" ? " (tables)" : ""}</span>
-            {!presenter && (
-              <label className="inline">Vertical{" "}
-                <select value={vertical} onChange={(e) => setVertical(e.target.value)} data-testid="vertical">
-                  {(story ? story.verticals : ["finance"]).map((v) => <option key={v} value={v}>{v}</option>)}
-                </select>
-              </label>
-            )}
-            <button type="button" onClick={reset} data-testid="reset">Reset</button>
-            <button type="button" aria-pressed={presenter} onClick={() => setPresenter((v) => !v)} data-testid="presenter">{presenter ? "Exit presenter (Esc)" : "Presenter (P)"}</button>
+            <TopMenu
+              mode={{ value: mode === "live" ? "real" : "mock", onChange: setMode, realAvailable: true, realHint: undefined }}
+              vertical={{ value: vertical, onChange: setVertical, options: story ? story.verticals : ["finance"] }}
+              theme={{ value: theme, onChange: pickTheme }}
+              fontSize={{ value: fontStep, onChange: setFontStep }}
+              present={{ active: presenter, onToggle: () => setPresenter((v) => !v) }}
+              help={{ href: "https://github.com/curtismu7/federated-identity-LAB#readme" }}
+              version={LAB_VERSION}
+              onReset={reset}
+              extra={<span className="chip" data-testid="mode">Mode: {mode || "..."}{mode === "live" ? " (local engine, loopback)" : mode === "mock" ? " (tables)" : ""}</span>}
+            >
+              <ShelfLink />
+            </TopMenu>
           </div>
         </div>
       </header>

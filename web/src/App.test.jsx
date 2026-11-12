@@ -36,7 +36,8 @@ const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
 const tab = (name) => userEvent.click(screen.getByRole("tab", { name }));
 const click = (id) => userEvent.click(screen.getByTestId(id));
-const live = async () => { await click("mode-live"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
+const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
+const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
 const setValue = (id, value) => fireEvent.change(screen.getByTestId(id), { target: { value } });
 const pick = (id, value) => userEvent.selectOptions(screen.getByTestId(id), value);
 const wholePageText = () => { const c = document.body.cloneNode(true); c.querySelectorAll("textarea,input").forEach((n) => n.remove()); return c.textContent; };
@@ -69,7 +70,7 @@ describe("shell", () => {
     await userEvent.keyboard("p");
     expect(screen.getByTestId("presenter-say")).toBeInTheDocument();
     expect(screen.getByTestId("banner")).toHaveTextContent(/SIMULATED/); expect(screen.getByTestId("banner")).toHaveTextContent(/UNVERIFIED on our tenant/);
-    expect(screen.getByTestId("presenter")).toHaveTextContent("Exit presenter");
+    expect(screen.getByTestId("presenter")).toHaveTextContent("Exit present");
     for (const t of TABS.filter((x) => x.id !== "talk")) { await tab(t.label); expect(screen.getByTestId("presenter-say")).toBeInTheDocument(); expect(screen.getByTestId("banner")).toHaveTextContent(/UNVERIFIED/); }
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByTestId("presenter-say")).toBeNull();
@@ -80,15 +81,15 @@ describe("shell", () => {
     await mount();
     for (const t of TABS) {
       await tab(t.label);
-      await click("mode-live"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live");
-      await click("mode-mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock");
+      await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live");
+      await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock");
     }
   });
 
   it("rule 19: the mode is server-backed — each switch POSTs /api/mode with exactly {source}, the mode survives a reload, and storage is not needed", async () => {
     await mount();
     seen.length = 0;
-    await click("mode-live");
+    await pickMode("real");
     expect(seen.some((r) => r.url.endsWith("/api/mode") && r.body === JSON.stringify({ source: "real" }))).toBe(true);
     cleanup(); render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T);
     expect(window.localStorage.getItem("fid.mode")).toBeNull();
@@ -99,7 +100,7 @@ describe("shell", () => {
     // a blocked storage never breaks the page: the server holds the mode
     cleanup(); const desc = Object.getOwnPropertyDescriptor(window, "localStorage");
     Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new Error("blocked"); } });
-    try { render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); await click("mode-mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T); }
+    try { render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T); }
     finally { Object.defineProperty(window, "localStorage", desc); }
   });
 
@@ -336,7 +337,7 @@ describe("Deployment models", () => {
     await click("try-per-job");
     await waitFor(() => expect(screen.getByRole("tab", { name: "Verify" })).toHaveAttribute("aria-selected", "true"), T);
     await waitFor(() => expect(screen.getByTestId("scenarios")).toBeInTheDocument(), T);
-    await click("mode-live"); await waitFor(() => expect(screen.getByTestId("preset")).toBeInTheDocument(), T);
+    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("preset")).toBeInTheDocument(), T);
   });
 });
 
@@ -419,7 +420,7 @@ describe("Talk track", () => {
   });
   it("the vertical switch reloads the cast: names change in the story and the identities", async () => {
     await mount(); expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(C.castAgent);
-    await pick("vertical", "health");
+    await pick("vertical-select", "health");
     await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(VERTICALS.health.castAgent), T);
     expect(screen.getByTestId("identity-fid-001")).not.toHaveTextContent(C.castAgent);
   });
@@ -454,7 +455,7 @@ describe("Reset and stale answers", () => {
     await waitFor(() => expect(screen.getByTestId("advance-5")).toBeEnabled(), T);
     let release; const held = new Promise((r) => { release = r; });
     gate = (u) => (u.includes("/api/clock") ? held : null);
-    await click("advance-5"); await click("mode-mock");
+    await click("advance-5"); await pickMode("mock");
     await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T);
     await waitFor(() => expect(screen.getByTestId("clock-now")).toHaveTextContent(/09:00:00 UTC/), T);
     release();

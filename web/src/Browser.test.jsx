@@ -34,7 +34,8 @@ const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
 const tab = (name) => userEvent.click(screen.getByRole("tab", { name }));
 const click = (id) => userEvent.click(screen.getByTestId(id));
-const live = async () => { await click("mode-live"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
+const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
+const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
 const setValue = (id, value) => fireEvent.change(screen.getByTestId(id), { target: { value } });
 const pick = (id, value) => userEvent.selectOptions(screen.getByTestId(id), value);
 const mintPreset = async (id) => { await tab("Verify"); await waitFor(() => expect(screen.getByTestId("mint")).toBeEnabled(), T); await pick("preset", id); await click("mint"); await waitFor(() => expect(screen.getByTestId("token").value).toMatch(/^eyJ/), T); };
@@ -162,7 +163,7 @@ describe("verifyInBrowser and compareResults never throw", () => {
 describe("the vertical switch on every tab, in both modes", () => {
   const NAMES = (v) => VERTICALS[v].castAgent;
   const noError = () => expect(screen.queryByTestId("render-error")).toBeNull();
-  const settled = async (v) => { await waitFor(() => expect(screen.getByTestId("vertical").value).toBe(v), T); await waitFor(() => expect(screen.queryByTestId("settling")).toBeNull(), T); noError(); };
+  const settled = async (v) => { await waitFor(() => expect(screen.getByTestId("vertical-select").value).toBe(v), T); await waitFor(() => expect(screen.queryByTestId("settling")).toBeNull(), T); noError(); };
 
   it("finance > health > retail > finance on every tab in Mock and in Live: no blank page, no thrown error, the names follow", async () => {
     await mount();
@@ -171,7 +172,7 @@ describe("the vertical switch on every tab, in both modes", () => {
       for (const t of TABS) {
         await tab(t.label);
         for (const v of ["health", "retail", "finance"]) {
-          await pick("vertical", v); await settled(v);
+          await pick("vertical-select", v); await settled(v);
           expect(document.querySelector("[role=tabpanel]").textContent.length).toBeGreaterThan(50);
           if (t.id === "identities") await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(NAMES(v)), T);
           if (t.id === "verify" && mode === "live") await waitFor(() => expect(screen.getByTestId("f-sub").value).toContain(NAMES(v)), T);
@@ -185,8 +186,8 @@ describe("the vertical switch on every tab, in both modes", () => {
     await mount(); await live();
     for (const t of ["Federated Identity", "Verify", "Self-Hosted Agents", "Audit", "Issuers and keys", "Diagram"]) {
       await tab(t);
-      fireEvent.change(screen.getByTestId("vertical"), { target: { value: "health" } }); fireEvent.change(screen.getByTestId("vertical"), { target: { value: "retail" } }); fireEvent.change(screen.getByTestId("vertical"), { target: { value: "finance" } }); fireEvent.change(screen.getByTestId("vertical"), { target: { value: "health" } });
-      await settled("health"); await pick("vertical", "finance"); await settled("finance");
+      fireEvent.change(screen.getByTestId("vertical-select"), { target: { value: "health" } }); fireEvent.change(screen.getByTestId("vertical-select"), { target: { value: "retail" } }); fireEvent.change(screen.getByTestId("vertical-select"), { target: { value: "finance" } }); fireEvent.change(screen.getByTestId("vertical-select"), { target: { value: "health" } });
+      await settled("health"); await pick("vertical-select", "finance"); await settled("finance");
     }
     await tab("Federated Identity"); await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(NAMES("finance")), T);
   }, 120000);
@@ -196,17 +197,17 @@ describe("the vertical switch on every tab, in both modes", () => {
     await waitFor(() => expect(screen.getByTestId("advance-5")).toBeEnabled(), T);
     let release; const held = new Promise((r) => { release = r; });
     gate = (u) => (u.includes("/api/clock") ? held : null);
-    await click("advance-5"); await pick("vertical", "health"); await settled("health");
+    await click("advance-5"); await pick("vertical-select", "health"); await settled("health");
     release(); await waitFor(() => expect(consumed.some((u) => u.includes("/api/clock"))).toBe(true), T);
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
-    noError(); expect(screen.getByTestId("vertical").value).toBe("health");
+    noError(); expect(screen.getByTestId("vertical-select").value).toBe("health");
   }, 60000);
 
   it("the Verify editor and the sensor forms follow a vertical change (no stale node or namespace from the previous one)", async () => {
     await mount(); await live(); await tab("Self-Hosted Agents");
     await waitFor(() => expect(screen.getByTestId("enrol")).toBeEnabled(), T); await click("enrol"); await waitFor(() => expect(screen.getByTestId("r-node")).toBeInTheDocument(), T);
     expect(screen.getByTestId("r-node").value).toBe(C.castNode1);
-    await pick("vertical", "retail"); await settled("retail");
+    await pick("vertical-select", "retail"); await settled("retail");
     await tab("Self-Hosted Agents"); await waitFor(() => expect(screen.getByTestId("enrol")).toBeEnabled(), T); await click("enrol"); await waitFor(() => expect(screen.getByTestId("r-node")).toBeInTheDocument(), T);
     expect(screen.getByTestId("r-node").value).toBe(VERTICALS.retail.castNode1);
     await waitFor(() => expect(screen.getByTestId("r-send")).toBeEnabled(), T); await click("r-send");
