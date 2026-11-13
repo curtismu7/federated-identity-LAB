@@ -22,7 +22,7 @@ export const codeOf = (fn) => { try { fn(); return null; } catch (e) { if (e.cod
 export const statusOf = (fn) => { try { fn(); return null; } catch (e) { if (e.status) return e.status; throw e; } };
 
 export async function withServer(fn, { configFile = '/nonexistent/customer.config.json', workspaces = createWorkspaces({ makeRand: () => seededRand('http') }), env, proxyHosts } = {}) {
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
   await health.ready;
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, configFile, workspaces, ...(env ? { env } : {}), ...(proxyHosts ? { proxyHosts } : {}) }) });
   try { await fn(url.replace(/\/$/, ''), { workspaces }); } finally { health.stop(); await new Promise((res) => server.close(res)); }

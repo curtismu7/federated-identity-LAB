@@ -26,7 +26,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // path -> allowed methods: the ONE route table. It decides the 405 (with Allow) and which paths are the API's own; every route below is registered through on(), so the table
 // cannot drift from the routes. ":name" is one segment; HEAD is allowed wherever GET is.
-export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env, proxyHosts = new Set() } = {}) {
+export function createApp({ health = createHealth({ demoId: 'federated-identity-lab', demoName: 'Federated Identity LAB', version: '0.1.0', runChecks: () => [], allPassed: () => true }), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env, proxyHosts = new Set() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', false);

@@ -22,7 +22,7 @@ const raw = (url, p) => new Promise((resolve, reject) => {
 });
 
 async function withApp(fn) {
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 }); await health.ready;
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 }); await health.ready;
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, configFile: '/nonexistent/customer.config.json' }) });
   try { await fn(url.replace(/\/$/, '')); } finally { health.stop(); await new Promise((r) => server.close(r)); fs.rmSync(dist, { recursive: true, force: true }); }
 }
