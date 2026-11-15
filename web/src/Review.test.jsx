@@ -12,7 +12,7 @@ import { forgetWorkspace } from "./workspace";
 const C = VERTICALS.finance;
 let server; let base; const realFetch = globalThis.fetch; let seen = []; let gate = () => null; let consumed = [];
 beforeAll(async () => {
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
   ({ server, url: base } = await startHttpServer({ port: 0, host: "127.0.0.1", app: createApp({ health, configFile: "/nonexistent/customer.config.json" }) }));
   base = base.replace(/\/$/, "");
   globalThis.fetch = async (u, init = {}) => {
