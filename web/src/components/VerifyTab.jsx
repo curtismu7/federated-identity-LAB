@@ -50,8 +50,8 @@ function Scenarios({ lab, scenarioId, setScenarioId }) {
         {sc.steps.map((st, i) => (
           <li key={i}>
             {st.say} <StatusTag status={st.ok ? "ok" : "refused"} /> {!st.ok && <code>{st.code}</code>}
-            {st.result?.steps && <details><summary>The fifteen steps</summary><VerifySteps steps={st.result.steps} />{st.result.forwarded && <Json value={st.result.forwarded} label="backend request" />}</details>}
-            {st.op === "mint" && st.result?.claims && <details><summary>Decoded claims (the token itself is not stored in a table)</summary><Json value={{ header: st.result.header, claims: st.result.claims }} label="decoded" /></details>}
+            {st.result?.steps && <details><summary>The fifteen steps</summary><VerifySteps steps={st.result.steps} />{st.result.forwarded && <Json value={st.result.forwarded} label="backend request" hot={["authMode", "inboundTokenForwarded"]} />}</details>}
+            {st.op === "mint" && st.result?.claims && <details><summary>Decoded claims (the token itself is not stored in a table)</summary><Json value={{ header: st.result.header, claims: st.result.claims }} label="decoded" hot={["alg", "kid", "exp"]} /></details>}
           </li>
         ))}
       </ol>
@@ -166,8 +166,8 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
             {token && !decoded && <p className="muted" data-testid="not-decodable">That text does not decode as a JWT; the gateway will refuse it at the parse step.</p>}
             {decoded && (
               <div className="cols" data-testid="decoded">
-                <div><h3 className="panel__sub">Header</h3><Json value={decoded.header} label="header" /></div>
-                <div><h3 className="panel__sub">Claims</h3><Json value={decoded.payload} label="claims" />
+                <div><h3 className="panel__sub">Header</h3><Json value={decoded.header} label="header" hot={["alg", "kid"]} /></div>
+                <div><h3 className="panel__sub">Claims</h3><Json value={decoded.payload} label="claims" hot={["exp", "node"]} />
                   <p className="muted" data-testid="decoded-times">{["iat", "nbf", "exp"].filter((k) => typeof decoded.payload[k] === "number").map((k) => `${k} ${labTime(decoded.payload[k])}`).join("; ")}{typeof decoded.payload.exp === "number" && typeof decoded.payload.iat === "number" ? `; lifetime (exp minus iat) ${decoded.payload.exp - decoded.payload.iat} s` : ""}</p></div>
               </div>
             )}
@@ -200,7 +200,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
                     <>
                       <h3 className="panel__sub">What the backend receives (backend isolation, deck claim)</h3>
                       <p className="muted">The token stops at the gateway. The backend gets the application's own credential ({result.forwarded.authMode}), masked here because the lab holds none. Inbound token forwarded: <strong data-testid="forwarded-flag">{String(result.forwarded.inboundTokenForwarded)}</strong>.</p>
-                      <Json value={result.forwarded.request} label="outbound request" testId="forwarded" />
+                      <Json value={result.forwarded.request} label="outbound request" testId="forwarded" hot={["url"]} />
                     </>
                   )}
                 </div>

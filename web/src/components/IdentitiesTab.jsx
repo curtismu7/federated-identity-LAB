@@ -151,7 +151,7 @@ export default function IdentitiesTab({ story, lab }) {
             {["mcp", "a2a", "llm"].map((svc) => <button key={svc} type="button" disabled={ro || lab.busy} onClick={() => lab.act("POST", `/api/keys/${k.id}/stored-call`, { call: { service: svc } })} data-testid={`stored-${k.id}-${svc}`}>{svc}</button>)}</p>
         ))}
         <Outcome last={lab.last} prefix="/stored-call" />
-        {lab.last?.route?.includes("stored-call") && lab.last.result && <Json value={{ principal: lab.last.result.principal, forwarded: lab.last.result.forwarded?.request }} label="stored key call" testId="stored-result" />}
+        {lab.last?.route?.includes("stored-call") && lab.last.result && <Json value={{ principal: lab.last.result.principal, forwarded: lab.last.result.forwarded?.request }} label="stored key call" testId="stored-result" hot={["principal", "url"]} />}
         {lab.last?.hops?.length > 0 && lab.last.route.includes("/keys") && <Hops hops={lab.last.hops} traceId={lab.last.traceId} truncated={lab.last.truncated} />}
       </section>
       <FieldSources fields={story.fieldSources.filter((x) => /Federated Identity is|imodelNonHuman|modelAgentWorkload|Pinned|A key owned|Key scopes|Scopes shadow/.test(x.field))} />

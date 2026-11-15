@@ -8,6 +8,7 @@ import { createHealth } from "../../server/src/health.js";
 import { VERTICALS } from "../../server/src/cast.js";
 import App, { BANNER_UNKNOWN, TABS } from "./App";
 import { labelOffsets } from "./components/PatternDiagram";
+import { setJsonView } from "./components/JsonPane";
 import { decodeToken, tamper } from "./token";
 import { visible } from "./safeText";
 import { forgetWorkspace } from "./workspace";
@@ -15,7 +16,7 @@ import { forgetWorkspace } from "./workspace";
 const C = VERTICALS.finance;
 let server; let base; const realFetch = globalThis.fetch; let seen = []; let gate = () => null; let consumed = [];
 beforeAll(async () => {
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
   ({ server, url: base } = await startHttpServer({ port: 0, host: "127.0.0.1", app: createApp({ health, configFile: "/nonexistent/customer.config.json" }) }));
   base = base.replace(/\/$/, "");
   globalThis.fetch = async (u, init = {}) => {
@@ -29,7 +30,7 @@ beforeAll(async () => {
   };
 });
 afterAll(async () => { globalThis.fetch = realFetch; await new Promise((r) => server.close(r)); });
-beforeEach(async () => { cleanup(); forgetWorkspace(); seen = []; gate = () => null; consumed = []; try { window.localStorage.clear(); window.sessionStorage.clear(); } catch { /* ignore */ } window.location.hash = ""; // rule 19: the server holds the mode, so every test starts from mock
+beforeEach(async () => { cleanup(); forgetWorkspace(); setJsonView("form"); seen = []; gate = () => null; consumed = []; try { window.localStorage.clear(); window.sessionStorage.clear(); } catch { /* ignore */ } window.location.hash = ""; // rule 19: the server holds the mode, so every test starts from mock
   await realFetch(`${base}/api/mode`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ source: "mock" }) }); });
 
 const T = { timeout: 20000 };
@@ -189,6 +190,23 @@ describe("Verify: the real engine in Live", () => {
     expect(screen.getByTestId("deployment")).toHaveTextContent(`${C.castNs}/${C.castAgent}`);
     expect(screen.getByTestId("decoded-times")).toHaveTextContent(/lifetime \(exp minus iat\) 3600 s/);
     expect(screen.getByTestId("mint-label")).toHaveTextContent(/lab-minted token/);
+  });
+
+  it("the JSON panes are the shared JsonPane: a Form | JSON toggle, one choice for every pane, the JSON text in the JSON view", async () => {
+    await mount(); await live();
+    expect(await verifyPreset("k8s-right")).toBe("allowed");
+    const box = screen.getByTestId("forwarded-box");
+    expect(within(box).getAllByRole("button").map((b) => b.textContent)).toEqual(["Form", "JSON"]);
+    expect(box).toHaveAttribute("data-view", "form");
+    expect(screen.getByTestId("forwarded").tagName).toBe("DIV");
+    await userEvent.click(within(box).getByRole("button", { name: "JSON" }));
+    expect(box).toHaveAttribute("data-view", "raw");
+    const pre = screen.getByTestId("forwarded");
+    expect(pre.tagName).toBe("PRE");
+    expect(pre).toHaveTextContent(/"authorization"/);
+    expect(pre).toHaveTextContent(/\[masked: /);
+    const groups = screen.getAllByRole("group", { name: /view$/ }); expect(groups.length).toBeGreaterThan(1);
+    for (const g of groups) expect(within(g).getByRole("button", { name: "JSON" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("the same identity reaches a peer agent, and the LLM provider is refused because the scope is not on the key (403)", async () => {
