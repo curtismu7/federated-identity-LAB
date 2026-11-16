@@ -32,7 +32,7 @@ beforeEach(async () => { cleanup(); forgetWorkspace(); seen = []; gate = () => n
 
 const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
-const tab = (name) => userEvent.click(screen.getByRole("tab", { name }));
+const tab = (name) => userEvent.click(screen.getByRole("link", { name })); // the shell-bar nav pills
 const click = (id) => userEvent.click(screen.getByTestId(id));
 const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
 const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
@@ -173,7 +173,7 @@ describe("the vertical switch on every tab, in both modes", () => {
         await tab(t.label);
         for (const v of ["health", "retail", "finance"]) {
           await pick("vertical-select", v); await settled(v);
-          expect(document.querySelector("[role=tabpanel]").textContent.length).toBeGreaterThan(50);
+          expect(document.querySelector("main [id^=panel-]").textContent.length).toBeGreaterThan(50);
           if (t.id === "identities") await waitFor(() => expect(screen.getByTestId("identity-fid-001")).toHaveTextContent(NAMES(v)), T);
           if (t.id === "verify" && mode === "live") await waitFor(() => expect(screen.getByTestId("f-sub").value).toContain(NAMES(v)), T);
           if (t.id === "talk") expect(screen.getByTestId("talk-track")).toBeInTheDocument();
