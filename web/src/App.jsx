@@ -15,6 +15,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import useLab from "./hooks/useLab";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import { getJson, postJson, resetWorkspace } from "./api";
+import PrivilegeCheck from "./privilege-check/PrivilegeCheck.jsx";
 
 export const TABS = [
   { id: "identities", label: "Federated Identity" },
@@ -166,6 +167,8 @@ export default function App() {
         </div>
       </header>
       <main>
+
+        <PrivilegeCheck />
         <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
         <div role="tablist" aria-label="Lab sections" className="tabs" ref={tabsRef}>
           {TABS.map((t, i) => (
