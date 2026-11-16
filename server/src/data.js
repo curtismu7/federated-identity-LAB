@@ -8,7 +8,7 @@ export const INTRO = 'Agents hold stored API keys that outlive the workload and 
 
 export const BANNER = {
   mock: `SIMULATED, MOCK mode: tables generated from the lab's own engine and read-only. Every product claim is a ${CLAIM_LABEL} (release ${RELEASE}). No tenant, gateway, issuer or cluster is touched. The issuers, keys and sensor are the lab's own.`,
-  live: `SIMULATED, LIVE mode: the lab's own local engine does real RS256 signing and verification on your tokens, loopback only, zero outbound network. Every product claim is a ${CLAIM_LABEL} (release ${RELEASE}). No tenant, gateway, issuer or cluster is touched.`,
+  live: `SIMULATED, LIVE mode: the lab's own local engine does real RS256 signing and verification on your tokens, loopback only, zero outbound network from the engine. The separate Privilege gateway check below is the only call that goes out, and only when the owner runs it in Real mode with a gateway configured. Every product claim is a ${CLAIM_LABEL} (release ${RELEASE}). Nothing else touches a tenant, gateway, issuer or cluster.`,
 };
 
 export const CLAIMS = [

@@ -107,3 +107,8 @@ summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .verdict[data-state="bad"] { border-color: var(--danger-text); }
 td.toggles { display: table-cell; }
 td.toggles > button { margin: 2px 4px 2px 0; }
+
+/* The two gateway cards (the shared privilege-check card, which caps itself at 46rem, and the What Privilege did card) span the page like the banner and the tabs, so the
+   request and response boxes have room. The button gets normal space above the trace's heading. */
+main .pcard { max-width: none; }
+.pcard__retry + .gw-trace { margin-top: 16px; }

@@ -12,6 +12,8 @@ const s = buildStory(DEFAULT_CAST, 'finance');
 test('both banners say SIMULATED, name their mode, carry the unverified label and the release', () => {
   for (const m of ['mock', 'live']) { assert.match(BANNER[m], new RegExp(`^SIMULATED, ${m.toUpperCase()} mode`)); assert.ok(BANNER[m].includes(CLAIM_LABEL)); assert.ok(BANNER[m].includes('2026-11-02')); assert.match(BANNER[m], /UNVERIFIED on our tenant/); }
   assert.match(BANNER.live, /loopback only, zero outbound network/);
+  assert.match(BANNER.live, /separate Privilege gateway check below is the only call that goes out, and only when the owner runs it in Real mode with a gateway configured/);
+  assert.doesNotMatch(BANNER.mock, /goes out/);
 });
 
 test('every claim names its slide (40 or 41) and the deck rows are all present', () => {
