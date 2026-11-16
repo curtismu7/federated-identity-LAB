@@ -58,6 +58,7 @@ export default function App() {
   const [resetMsg, setResetMsg] = useState("");
   const [pending, setPending] = useState(null);
   const [verifyUi, setVerifyUi] = useState(null);
+  const [gateway, setGateway] = useState(null); // the gateway card's last finished check (its onResult), which "What Privilege did" draws
   const [theme, setTheme] = useState(initialTheme);
   const [fontStep, setFontStep] = useState(() => { try { const f = localStorage.getItem("fedid.font"); return ["S", "M", "L"].includes(f) ? f : "M"; } catch { return "M"; } });
   const pickTheme = (next) => {
@@ -81,6 +82,7 @@ export default function App() {
     getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [vertical]);
+  useEffect(() => { setGateway(null); }, [mode]); // a check from an earlier visit to Real is not shown on the next one
   useEffect(() => { setVerifyUi(null); }, [vertical, mode]); // presets carry the cast, so a new vertical (or mode) gives a new editor; answers still in flight are dropped by their context tag
   useEffect(() => {
     const on = () => setTab(tabFromHash());
@@ -169,7 +171,7 @@ export default function App() {
       </header>
       <main>
 
-        {mode === "live" && <><PrivilegeCheck /><GatewayCheckTrace /></>}
+        {mode === "live" && <><PrivilegeCheck onResult={setGateway} /><GatewayCheckTrace result={gateway} /></>}
         <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
         <div role="tablist" aria-label="Lab sections" className="tabs" ref={tabsRef}>
           {TABS.map((t, i) => (
