@@ -36,7 +36,7 @@ beforeEach(async () => { cleanup(); forgetWorkspace(); setJsonView("form"); seen
 
 const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
-const tab = (name) => userEvent.click(screen.getByRole("tab", { name }));
+const tab = (name) => userEvent.click(screen.getByRole("link", { name })); // the shell-bar nav pills
 const click = (id) => userEvent.click(screen.getByTestId(id));
 const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
 const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
@@ -106,13 +106,22 @@ describe("shell", () => {
     finally { Object.defineProperty(window, "localStorage", desc); }
   });
 
-  it("arrow keys move between tabs, and the URL hash follows; talks only to its own origin", async () => {
+  it("shell bar first, then main with the banner first; the nav pills mark the current section and the URL hash follows; talks only to its own origin", async () => {
     await mount();
-    screen.getByRole("tab", { name: "Federated Identity" }).focus();
-    await userEvent.keyboard("{ArrowRight}");
-    expect(screen.getByRole("tab", { name: "Verify" })).toHaveAttribute("aria-selected", "true"); expect(window.location.hash).toBe("#verify");
-    await userEvent.keyboard("{ArrowLeft}{ArrowLeft}");
-    expect(screen.getByRole("tab", { name: "Talk track" })).toHaveAttribute("aria-selected", "true");
+    const bar = document.querySelector("header.shell-bar");
+    expect(bar).not.toBeNull(); expect(document.querySelectorAll("header")).toHaveLength(1);
+    expect(bar.nextElementSibling).toBe(document.querySelector("main"));
+    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
+    expect(bar.querySelector(".shell-brand h1")).toHaveTextContent("Federated Identity LAB"); expect(document.querySelectorAll("h1")).toHaveLength(1);
+    expect(bar.querySelector(".shell-brand [data-testid=mode]")).toHaveTextContent("Mode: mock");
+    expect(bar.querySelector(".shell-right[data-testid=top-menu]")).not.toBeNull();
+    expect(within(bar.querySelector("nav.shell-nav")).getAllByRole("link").map((a) => a.textContent)).toEqual(TABS.map((t) => t.label));
+    expect(screen.getByRole("link", { name: "Federated Identity" })).toHaveAttribute("aria-current", "page");
+    await tab("Verify");
+    expect(screen.getByRole("link", { name: "Verify" })).toHaveAttribute("aria-current", "page"); expect(window.location.hash).toBe("#verify");
+    expect(screen.getByRole("link", { name: "Federated Identity" })).not.toHaveAttribute("aria-current");
+    window.location.hash = "#talk"; window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(screen.getByRole("link", { name: "Talk track" })).toHaveAttribute("aria-current", "page"));
     await tab("Diagram");
     for (const s of seen) expect(s.url.startsWith(base) || s.url.startsWith("/")).toBe(true);
   });
@@ -443,7 +452,7 @@ describe("Deployment models", () => {
     expect(screen.getByTestId("model-sidecar")).toHaveTextContent(/in development/); expect(screen.getByTestId("model-sidecar")).toHaveTextContent(/No behaviour is claimed/);
     expect(screen.getByTestId("token-pass-note")).toHaveTextContent(/never forwarded/);
     await click("try-per-job");
-    await waitFor(() => expect(screen.getByRole("tab", { name: "Verify" })).toHaveAttribute("aria-selected", "true"), T);
+    await waitFor(() => expect(screen.getByRole("link", { name: "Verify" })).toHaveAttribute("aria-current", "page"), T);
     await waitFor(() => expect(screen.getByTestId("scenarios")).toBeInTheDocument(), T);
     await pickMode("real"); await waitFor(() => expect(screen.getByTestId("preset")).toBeInTheDocument(), T);
   });

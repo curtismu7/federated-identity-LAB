@@ -155,7 +155,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
               <label>nbf (blank = omit)<input value={f.nbf} onChange={set("nbf")} inputMode="numeric" data-testid="f-nbf" /></label>
             </div>
             <label>Extra claims (one name=value per line; the lab's flat claim names)<textarea rows={4} value={f.extra} onChange={set("extra")} data-testid="f-extra" /></label>
-            <p><button type="button" className="primary" disabled={lab.busy} onClick={mint} data-testid="mint">Mint</button></p>
+            <p><button type="button" disabled={lab.busy} onClick={mint} data-testid="mint">Mint</button></p>
             {minted?.error && <p className="field-error" role="alert" data-testid="mint-error">Refused ({minted.error}): {visible(minted.detail || "")}</p>}
             {minted?.label && <p className="muted" data-testid="mint-label">{minted.label}{minted.notes ? `; ${minted.notes}` : ""}</p>}
             {minted?.notices?.length > 0 && <ul className="plain" data-testid="mint-notices" role="status">{minted.notices.map((n, i) => <li key={i}><strong>Notice.</strong> {visible(n.text)}. The lab signs exactly what you typed; it does not normalise, trim or decode claims, because the gateway compares them exactly. Hidden characters are written out as <code>\u{"{...}"}</code> below.</li>)}</ul>}

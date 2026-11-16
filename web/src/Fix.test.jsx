@@ -98,7 +98,7 @@ describe("one token cap for the browser and the server (S4)", () => {
   it("the Verify page counts the token's characters, says when it is over the limit, cuts nothing, and the browser check and the gateway agree on the long token", async () => {
     render(<App />); await screen.findByTestId("identities", {}, T);
     await pickMode("real"); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T);
-    await userEvent.click(screen.getByRole("tab", { name: "Verify" }));
+    await userEvent.click(screen.getByRole("link", { name: "Verify" }));
     await waitFor(() => expect(screen.getByTestId("mint")).toBeEnabled(), T);
     const long = tok(HDR, payload(new Engine(C), { big: "A".repeat(4200) }));
     expect(long.length).toBeGreaterThan(4096);
@@ -120,7 +120,7 @@ describe("the diagram tab recovers from a failed load (N6)", () => {
   it("an error belongs to the diagram that failed: choosing another clears it, the switcher stays, and Try again reloads", async () => {
     render(<App />); await screen.findByTestId("identities", {}, T);
     fail = (u) => u.includes("name=verification-steps");
-    await userEvent.click(screen.getByRole("tab", { name: "Diagram" }));
+    await userEvent.click(screen.getByRole("link", { name: "Diagram" }));
     await waitFor(() => expect(screen.getByTestId("pattern-canvas")).toBeInTheDocument(), T);
     await userEvent.click(screen.getByTestId("dg-verification-steps"));
     await waitFor(() => expect(screen.getByTestId("diagram-error")).toHaveTextContent(/Could not load the diagram \(Failed to fetch\)/), T);

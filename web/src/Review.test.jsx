@@ -30,7 +30,7 @@ beforeEach(() => { cleanup(); forgetWorkspace(); seen = []; gate = () => null; c
 
 const T = { timeout: 20000 };
 const mount = async () => { render(<App />); await screen.findByTestId("identities", {}, T); };
-const tab = (name) => userEvent.click(screen.getByRole("tab", { name }));
+const tab = (name) => userEvent.click(screen.getByRole("link", { name })); // the shell-bar nav pills
 const click = (id) => userEvent.click(screen.getByTestId(id));
 const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
 const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
