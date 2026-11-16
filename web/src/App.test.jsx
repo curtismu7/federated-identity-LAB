@@ -1,5 +1,6 @@
 // These tests drive the real UI against the real Express app (started on a loopback port inside the test), so a green run means the pieces
 // actually work together: the real story data, the real engine, the real RS256 signing and verification, the real Mock table.
+import http from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -204,6 +205,46 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
     expect(ok.textContent).not.toContain(token.split(".")[2]);
     expect(await verifyPreset("k8s-right", { tamperIt: true })).not.toBe("allowed");
     await waitFor(() => expect(within(screen.getByTestId("gateway-trace")).getByText(/refused at:/)).toBeInTheDocument(), T);
+  });
+
+  it("Real: the gateway card and \"Show what Privilege did\" appear only in Real; the panel is source real, shows observed or inferred decisions, never checked, and no key", async () => {
+    const KEY = ["fake", "agent", "key"].join("-") + "Q".repeat(24);
+    const gw = http.createServer((req, res) => {
+      let raw = ""; req.on("data", (c) => { raw += c; });
+      req.on("end", () => {
+        if (req.method !== "POST") { res.writeHead(200).end(); return; }
+        const m = JSON.parse(raw || "{}");
+        const send = (status, body, headers = {}) => { res.writeHead(status, { "content-type": "application/json", ...headers }); res.end(JSON.stringify(body)); };
+        if (m.method === "initialize") return send(200, { jsonrpc: "2.0", id: m.id, result: { protocolVersion: "2025-06-18", capabilities: {}, serverInfo: { name: "stub-door" } } }, { "mcp-session-id": "sess-1234567890abcdef" });
+        if (m.method === "notifications/initialized") { res.writeHead(202).end(); return; }
+        if (m.method === "tools/list") return send(200, { jsonrpc: "2.0", id: m.id, result: { tools: [{ name: "lookup", description: `echoes ${KEY}` }] } });
+        return send(403, { error: "refused by policy" });
+      });
+    });
+    await new Promise((r) => gw.listen(0, "127.0.0.1", r));
+    const keep = ["FID_GW_URL", "FID_GW_APPS", "FID_GW_KEY_LAB", "STANDALONE_ENV"].map((k) => [k, process.env[k]]);
+    Object.assign(process.env, { FID_GW_URL: `http://127.0.0.1:${gw.address().port}`, FID_GW_APPS: "door-a", FID_GW_KEY_LAB: KEY, STANDALONE_ENV: "/nonexistent/standalone.env" });
+    // The server hop runs in this jsdom process, whose AbortSignal is not the one node's fetch accepts: the hop's timeout signal is dropped here only.
+    const patched = globalThis.fetch;
+    globalThis.fetch = (u, init) => patched(u, init?.signal ? { ...init, signal: undefined } : init);
+    try {
+      await mount();
+      expect(screen.queryByTestId("privilege-check")).toBeNull();
+      expect(screen.queryByTestId("gateway-check-trace")).toBeNull();
+      await live();
+      expect(screen.getByTestId("privilege-check")).toBeInTheDocument();
+      await click("gateway-check-trace-run");
+      const panel = await within(await screen.findByTestId("gateway-check-trace", {}, T)).findByTestId("gateway-trace", {}, T);
+      expect(panel).toHaveTextContent(/tools\/list/);
+      expect(panel).toHaveTextContent(/Refusal probe/);
+      expect(panel).toHaveTextContent(/inferred from the outcome/);
+      expect(panel).not.toHaveTextContent(/checked/i);
+      expect(document.body.textContent).not.toContain(KEY);
+    } finally {
+      globalThis.fetch = patched;
+      for (const [k, v] of keep) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+      await new Promise((r) => gw.close(r));
+    }
   });
 });
 
