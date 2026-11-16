@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import fs from "node:fs";
 import ShelfLink from "./components/ShelfLink";
+import VerifyMark from "./components/VerifyMark.jsx";
 import IdentitiesTab from "./components/IdentitiesTab";
 import VerifyTab from "./components/VerifyTab";
 import IssuersTab from "./components/IssuersTab";
@@ -159,6 +160,7 @@ export default function App() {
               extra={<span className="chip" data-testid="mode">Mode: {mode || "..."}{mode === "live" ? " (local engine, loopback)" : mode === "mock" ? " (tables)" : ""}</span>}
             >
               <ShelfLink />
+              <VerifyMark id="federated-identity-lab" />
             </TopMenu>
           </div>
         </div>
