@@ -79,6 +79,12 @@ describe("shell", () => {
     expect(BANNER_UNKNOWN).toMatch(/UNVERIFIED/);
   });
 
+  it("the banner before the mode is known is honest in both modes: the engine is local, the gateway check is Real only and goes out only when configured", () => {
+    expect(BANNER_UNKNOWN).toMatch(/engine is loopback only/);
+    expect(BANNER_UNKNOWN).toMatch(/Privilege gateway check goes out only in Real mode, and only when run with a gateway configured/);
+    expect(BANNER_UNKNOWN).not.toMatch(/no outbound network|Nothing here calls/i);
+  });
+
   it("the banner and the mode chip follow the toggle, in both directions, on every tab", async () => {
     await mount();
     for (const t of TABS) {

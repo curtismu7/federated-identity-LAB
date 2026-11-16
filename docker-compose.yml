@@ -1,7 +1,7 @@
 # OrbStack:  HOST_PORT=7400 docker compose up --build -d   ->  http://127.0.0.1:7400
 # The server binds 0.0.0.0 INSIDE the container (FIDLAB_BIND is the opt-in), but the port is published on loopback only.
 # Do not change the 127.0.0.1 below. HOST_PORT must stay in 7400-7449. FID_LAB_MODE=live opens the page in Live mode
-# (still loopback, no outbound). Mock is the default.
+# (still loopback; only the Real-mode gateway check goes out). Mock is the default.
 name: federated-identity-lab
 
 services:

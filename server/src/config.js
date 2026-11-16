@@ -1,5 +1,5 @@
 // Deployment configuration. FID_LAB_MODE is the DEFAULT mode the page opens in (mock or live); the header toggle can switch per visit.
-// Mock is the default. Both modes are loopback-only and make zero outbound calls. Anything else is an error, never a silent fallback.
+// Mock is the default. Any other mode than mock or live is an error, never a silent fallback. Both modes' own engine is loopback-only with zero outbound calls; only the Real-mode gateway check goes out.
 // The one shared settings file (~/Development/.env, or STANDALONE_ENV) may carry FID_LAB_MODE. A bare MODE is NOT read:
 // the shared file is read by every standalone app, and another app's MODE must not switch this one.
 export const MODES = ['mock', 'live'];

@@ -21,5 +21,5 @@ const port = resolvePort();
 // LAB_ALLOWED_HOSTS (the family lab-proxy's name for this lab) is parsed before the server starts.
 const proxyHosts = labProxyHosts(process.env, port);
 const { url } = await startHttpServer({ port, host, app: createApp({ proxyHosts }) });
-console.log(`[federated-identity-lab] simulated lab at ${url} (opens in ${mode} mode; loopback, no outbound network)`);
+console.log(`[federated-identity-lab] simulated lab at ${url} (opens in ${mode} mode; loopback; only the Real-mode gateway check goes out)`);
 console.log(`[federated-identity-lab] health: ${url}api/health`);

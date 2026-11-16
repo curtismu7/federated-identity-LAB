@@ -1,6 +1,6 @@
 // One Express app. /api = health, info, story, diagram, state and the action endpoints (mint, verify, clock, issuers, identities, keys, people, sensors, reset).
 // Server state per workspace id (X-Workspace) is one engine per vertical, so one visitor's Reset never touches another's.
-// Mock reads generated tables and refuses every write; Live drives the engine. Both are loopback-only with zero outbound calls.
+// Mock reads generated tables and refuses every write; Live drives the engine. Both engines are loopback-only with zero outbound calls; only the Real-mode gateway check (POST /gateway-check) goes out.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
