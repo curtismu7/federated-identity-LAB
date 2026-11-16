@@ -82,3 +82,16 @@ test('the story names no real host, holds no credential-shaped value, and does n
   }
   assert.ok(NOT_DEMONSTRATED.length >= 6); assert.ok(NOT_DEMONSTRATED.some((n) => /MCP path or the LLM route/.test(n)));
 });
+
+test('the not-demonstrated list is honest about the Real-mode gateway check: our own checks never ran against a real gateway, the check only observes one reply to a listing and a refused call, and the gateway\'s own policy, token validation and grants stay unobserved', () => {
+  const g = NOT_DEMONSTRATED.find((n) => /^Anything about how the real gateway/.test(n));
+  assert.ok(g, 'the gateway bullet exists');
+  assert.match(g, /fifteen steps/); assert.match(g, /Live RS256 signing/); assert.match(g, /never ran against a real gateway/);
+  assert.match(g, /Real-mode check only observes a real gateway's reply to one listing and one refused call \(what the reply says, not how the gateway decides\)/);
+  assert.match(g, /policy engine, token validation and grant logic stay unobserved/);
+  assert.doesNotMatch(g, /nothing here ran against one/);
+  const c = NOT_DEMONSTRATED.find((n) => /^Real credentials/.test(n));
+  assert.match(c, /no tenant credential and no secret of its own/);
+  assert.match(c, /Real mode with a gateway configured it reads an agent key for the one gateway check, never shown, stored or put in a trace/);
+  assert.doesNotMatch(c, /The lab holds none\./);
+});

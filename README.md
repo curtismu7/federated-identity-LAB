@@ -90,11 +90,11 @@ Open http://localhost:7400/. Or in one step: `./scripts/run.sh` (installs and bu
 
 ## Settings file
 
-All standalone apps read one settings file, `~/Development/.env`, which must be mode 600. `STANDALONE_ENV` overrides its path. This lab needs none of it. It parses the file (`util.parseEnv`) and takes exactly one optional key; no other key from the file ever enters the server's environment:
+All standalone apps read one settings file, `~/Development/.env`, which must be mode 600. `STANDALONE_ENV` overrides its path. This lab needs none of it. It parses the file (`util.parseEnv`) and takes exactly one optional key into its environment; no other key from the file ever enters it (the Real-mode gateway check reads its own `FID_GW_*` keys, see Real mode):
 
 - `FID_LAB_MODE` (optional): `mock` (default) or `live`, the mode the page opens in. The header toggle switches per visit. A bare `MODE` in the shared file is ignored, because it may belong to another app.
 
-The shared file holds no `PORT`: the lab keeps its port default in code. Admin or worker credentials never belong in that file (they live in `~/.config/demo-kit/provisioning.json`), and this lab uses none. It holds no credential for any tenant. The doctor reports whether the file exists and its mode, and never prints a value.
+The shared file holds no `PORT`: the lab keeps its port default in code. Admin or worker credentials never belong in that file (they live in `~/.config/demo-kit/provisioning.json`), and this lab uses none. It holds no tenant credential; the one key it reads for the Real-mode gateway check is an agent access key. The doctor reports whether the file exists and its mode, and never prints a value.
 
 ## Ports, and what to do if the port is taken
 

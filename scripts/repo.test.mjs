@@ -118,3 +118,26 @@ test('the shared stylesheet is vendored byte for byte when the canonical copy is
 test('the repo carries no k8s manifests, no bare MODE, no credential field and no <em> in the web code; the web code never builds markup from text', () => {
   for (const f of WEB_FILES) { const t = read(`web/src/${f}`); assert.ok(!/type="password"|process\.env\.MODE|<em>|dangerouslySetInnerHTML|innerHTML/.test(t), f); }
 });
+
+test('the docs say the lab holds no tenant credential and no secret of its own, and name the one agent key the Real-mode gateway check reads', () => {
+  const s = read('docs/safety.md');
+  assert.match(s, /\*\*The lab holds no tenant credential and no secret of its own\.\*\*/);
+  assert.match(s, /In Real mode with a gateway configured, an agent access key is read from the settings file for the one gateway check and is never shown, stored or put in a trace/);
+  assert.doesNotMatch(s, /holds no real credential/);
+  assert.match(s, /taking only `FID_LAB_MODE` into its environment \(the Real-mode gateway check separately reads its `FID_GW_` keys/);
+  const r = read('README.md');
+  assert.match(r, /takes exactly one optional key into its environment/);
+  assert.match(r, /It holds no tenant credential; the one key it reads for the Real-mode gateway check is an agent access key/);
+  assert.doesNotMatch(r, /It holds no credential for any tenant/);
+  assert.match(read('CLAUDE.md'), /takes only `FID_LAB_MODE` into its environment, never a bare MODE; the Real-mode gateway check separately reads `FID_GW_\*`/);
+  const e = read('.env.example');
+  assert.match(e, /no credentials of its own/); assert.match(e, /only the optional Real-mode gateway check reads an agent key/);
+  assert.doesNotMatch(e, /it holds none/);
+});
+
+test('the talk track lists the gateway bullet and the credentials bullet in their honest form', () => {
+  const t = read('docs/talk-track.md');
+  assert.match(t, /never ran against a real gateway; the Real-mode check only observes/);
+  assert.match(t, /Real credentials\. The lab holds no tenant credential and no secret of its own/);
+  assert.doesNotMatch(t, /nothing here ran against one/);
+});
