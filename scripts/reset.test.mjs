@@ -8,7 +8,7 @@ import { reset } from './reset.mjs';
 
 test('the reset script clears the default workspace (every vertical) and refuses a non-loopback host', async () => {
   const workspaces = createWorkspaces();
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, workspaces }) });
   try {
     const base = url.replace(/\/$/, '');

@@ -21,7 +21,7 @@ try {
   const { createApp, startHttpServer } = await load('server/src/app.js');
   const { createHealth } = await load('server/src/health.js');
   const { tamperToken } = await load('server/src/jwt.js');
-  const health = createHealth({ runChecks: async () => [], intervalMs: 3_600_000 });
+  const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health }) });
   try {
     const base = url.replace(/\/$/, ''); const h = { 'content-type': 'application/json', origin: base, 'x-workspace': 'w-doctor' };
