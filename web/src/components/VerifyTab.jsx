@@ -3,7 +3,11 @@ import { visible } from "../safeText";
 import { decodeToken, labTime, tamper } from "../token";
 import { MAX_TOKEN } from "../browserVerify";
 import { compareResults, verifyInBrowser } from "../browserVerify";
+import GatewayTrace from "../gateway-trace/GatewayTrace";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
+
+// This lab never contacts a real Privilege gateway (Mock and Live are both the lab's own simulated one), so the panel says so instead of "Real mode shows the actual gateway".
+const TRACE_NOTE = "Simulated: this lab never contacts a real Privilege gateway. Its own in-process gateway runs the fifteen checks in a fixed order, so every decision here is what it computed (\"checked\"). Live signs and verifies real RS256 on the lab's own keys; Mock reads a generated table.";
 
 const ISSUER_CHOICES = [["kube", "Kubernetes API server"], ["github", "GitHub Actions"], ["gitlab", "GitLab CI"], ["spire", "SPIFFE/SPIRE server"], ["private", "Private issuer"], ["attacker", "Attacker (no registered issuer)"]];
 
@@ -41,6 +45,7 @@ export function mintFromFields(f) {
 function Scenarios({ lab, scenarioId, setScenarioId }) {
   const sc = lab.scenario;
   if (!sc) return null;
+  const traced = sc.steps.filter((st) => st.gatewayTrace);
   return (
     <section className="panel" data-testid="scenarios">
       <h2 className="panel__title">Scripted scenarios (Mock) <ClaimTag /> <SourceTag source="invented" label="generated from the lab's engine" /></h2>
@@ -55,6 +60,7 @@ function Scenarios({ lab, scenarioId, setScenarioId }) {
           </li>
         ))}
       </ol>
+      {traced.length > 0 && <GatewayTrace source="mock" basisNote={TRACE_NOTE} exchanges={traced.map((st, i) => ({ step: i + 1, title: st.say, status: st.status, trace: st.gatewayTrace }))} />}
     </section>
   );
 }
@@ -102,7 +108,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
     const r = await lab.act("POST", "/api/verify", { verify: { token: tok, service, ...(identityId ? { identityId } : {}) } });
     if (mine !== seq.current) return;
     const b = r.body || {};
-    done({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
+    done({ result: b.result ? { ...b.result, hops: b.hops, traceId: b.traceId, truncated: b.hopsTruncated, gatewayTrace: b.gatewayTrace } : { ok: false, code: b.error, detail: b.detail, status: r.status, steps: null } });
     checkInBrowser(tok);
   };
 
@@ -208,6 +214,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
               {result.hops && <Hops hops={result.hops} traceId={result.traceId} truncated={result.truncated} />}
             </section>
           )}
+          {result?.gatewayTrace && <GatewayTrace source="mock" basisNote={TRACE_NOTE} exchanges={[{ step: 1, title: `Verify at the gateway (${result.scope})`, status: result.status, trace: result.gatewayTrace }]} />}
           <Outcome last={lab.last} prefix="/api/tokens" />
         </>
       )}

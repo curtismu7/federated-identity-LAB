@@ -178,6 +178,35 @@ describe("Verify: Mock scenarios, read-only", () => {
   });
 });
 
+describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
+  it("Mock: every scripted verify step shows its request, response and fifteen checked decisions; the panel says the gateway is simulated", async () => {
+    await mount(); await tab("Verify");
+    const panel = await screen.findByTestId("gateway-trace", {}, T);
+    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/never contacts a real Privilege gateway/);
+    const first = within(panel).getByTestId("trace-1");
+    expect(within(within(panel).getByTestId("trace-1-decisions")).getAllByRole("listitem").length).toBe(15);
+    expect(first).toHaveTextContent(/POST https:\/\/gateway\.fabrikam\.example\/mcp/);
+    expect(first).toHaveTextContent(/HTTP 200/);
+    expect(panel).not.toHaveTextContent(/inferred from the outcome|observed in the response/);
+    await pick("scenario-pick", "fork-pr");
+    await waitFor(() => expect(screen.getByTestId("scenario-say")).toHaveTextContent(/pull request/), T);
+    await waitFor(() => expect(within(screen.getByTestId("gateway-trace")).getAllByText(/refused at:/).length).toBeGreaterThan(0), T);
+  });
+
+  it("Live: Verify adds the panel under the verdict; a refusal shows the failing decision; the token text is not in it", async () => {
+    await mount(); await live();
+    expect(await verifyPreset("k8s-right")).toBe("allowed");
+    const ok = screen.getByTestId("gateway-trace");
+    expect(within(screen.getByTestId("trace-1-decisions")).getAllByRole("listitem").length).toBe(15);
+    expect(ok).toHaveTextContent(/all 15 decisions passed/);
+    const token = screen.getByTestId("token").value;
+    expect(ok).toHaveTextContent(`Bearer <token, ${token.length} characters, kept on the server>`);
+    expect(ok.textContent).not.toContain(token.split(".")[2]);
+    expect(await verifyPreset("k8s-right", { tamperIt: true })).not.toBe("allowed");
+    await waitFor(() => expect(within(screen.getByTestId("gateway-trace")).getByText(/refused at:/)).toBeInTheDocument(), T);
+  });
+});
+
 describe("Verify: the real engine in Live", () => {
   it("mint -> verify: the right token is allowed; fifteen steps pass; the backend gets a masked credential and not the token; the deployment is named", async () => {
     await mount(); await live();

@@ -117,6 +117,8 @@ Other variables: `VITE_PORT` (Vite dev server, default 7401, `npm run dev -w web
 
 The header has a **Mock / Live** toggle on every page, and the banner and the mode chip show the same mode. Mock reads tables generated from the engine (fourteen scripted scenarios per vertical; a scenario picker on the Verify tab) and is read-only: every write control is off and the API answers 409. Live drives this workspace's engine (one per vertical): the token editor, the issuers, the clock, identities, keys, sensors and the policy.
 
+**What Privilege did (Rule 25).** Under the Verify result (and under each scripted verify step in Mock) the page shows the call to the gateway through the family's shared `GatewayTrace`: the exact request, the exact response (both in the shared JSON pane) and the fifteen decisions between them. This lab never contacts a real Privilege gateway: the gateway is its own simulation, so every decision is marked **checked** (the engine computed it) and a step the verification never reached is "not reached". The visitor's token is never in the trace, only its length. Files: `web/src/gateway-trace/` and `server/src/gatewayTrace.js` (vendored byte-for-byte, pinned by `gateway-trace.sha256`), the lab's own builder is `server/src/verifyTrace.js`. The stored-key call and the sensor report are not traced.
+
 ## Health, doctor and reset
 
 ```
@@ -142,7 +144,7 @@ npm test    # server (node --test), web (vitest, drives the UI against the real 
 
 The shared checks are run by hand, because the scripts are not shipped into this repo's CI: `bash <AI-DEMO-Standalone>/scripts/check-drift.sh .`, `bash <AI-DEMO-Standalone>/scripts/check-css.sh .` and `node <demo-kit-base>/scripts/conformance.mjs . --new`. Conformance warns on rule 18 on purpose: the deferred SE k8s manifests.
 
-On Node 26: 360 tests pass (259 server, 76 web, 25 scripts).
+On Node 26: 393 tests pass (274 server, 91 web, 28 scripts).
 
 **Mutation checks.** The editable thresholds are pinned by tests written against literal numbers (N accepted, N+1 refused): the notAfter second, the 86400 lifetime cap, the 4096 token cap on both verifiers, the 31,536,000 second mint offset, the 160 character claim, the 24 character run, the 400 character free-text cap, the JWK kid (60), modulus (700) and `oth` member, and the workspace store's 500 visitors and 60 idle minutes. The adapter wiring and the HTTP edge were checked with 15 mutants, one edit at a time, against the server tests (the corpus HTTP sample not included): response mask off; hops body not scrubbed (alone, and together with the response mask); 415 gate removed; workspace credential check removed; one route missing from the 405 table; `isPageAddress` widened to every GET; error handler echoing the message; final JSON 404 removed; adapter opaque names dropped; free-text cleaner not masking; claim check without the shared masker; object keys not masked in the answer; 405 without `Allow`; a refused workspace id still taking a slot. All 15 were killed. The response mask and the input cleaners overlap on purpose (defence in depth): with the response mask off, nothing else notices unless a test breaks the cleaners first, which `the answer mask is a net under the input cleaners` does.
 

@@ -15,6 +15,7 @@ import { InputError } from './errors.js';
 import { MOCK_TABLE } from './mockTable.js';
 import { createWorkspaces, workspaceFrom } from './workspaces.js';
 import { jwksFor, liveState, mockState, runAction } from './service.js';
+import { liveVerifyTrace, withMockVerifyTraces } from './verifyTrace.js';
 import { maskDeep, maskStatic } from './mask.js';
 import { shelfInfo } from './shelfLink.js';
 import { buildMethodTable, charsetProblem, isPageAddress, methodNotAllowed } from './shared/hygiene.js';
@@ -84,7 +85,11 @@ export function createApp({ health = createHealth({ demoId: 'federated-identity-
     noStore(res);
     const mode = modeOf(req.query.mode); if (!mode) return res.status(400).json({ error: 'bad_mode', detail: 'mode must be mock or live' });
     const vertical = verticalOf(req);
-    if (mode === 'mock') { res.locals.lab = true; return res.json({ mode, vertical, workspace: id, ...mockState(table, vertical, req.query.scenario) }); }
+    if (mode === 'mock') {
+      res.locals.lab = true;
+      const ms = mockState(table, vertical, req.query.scenario);
+      return res.json({ mode, vertical, workspace: id, ...ms, scenario: { ...ms.scenario, steps: withMockVerifyTraces(ms.scenario.steps, castFor(req)) } });
+    }
     return res.json({ mode, vertical, workspace: id, state: liveState(id, workspaces, vertical, castFor(req)) });
   });
 
@@ -113,6 +118,11 @@ export function createApp({ health = createHealth({ demoId: 'federated-identity-
         const r = runAction({ ws: id, workspaces, vertical, cast: castFor(req), op, params: params(req), traceparent: req.headers.traceparent, route: { method: method.toUpperCase(), url: `/api${route}` } });
         res.set('traceparent', r.traceparent);
         const common = { workspace: id, mode, vertical, hops: r.hops, hopsTruncated: r.hopsTruncated, traceId: r.traceId, state: r.state };
+        if (op === 'verify') { // "What Privilege did": the lab's own gateway's call, with the decisions it computed (null when the request never reached it)
+          const hop = r.hops.find((h) => h.label === 'gateway verifies the token');
+          const gatewayTrace = liveVerifyTrace({ cast: castFor(req), result: r.outcome.result, token: params(req).token, traceparent: hop?.request?.headers?.traceparent });
+          if (gatewayTrace) common.gatewayTrace = gatewayTrace;
+        }
         if (r.outcome.ok) return res.json({ ok: true, result: r.outcome.result, ...common });
         return res.status(r.outcome.status || 400).json({ ok: false, error: r.outcome.code, detail: r.outcome.detail, result: r.outcome.result, ...common });
       } catch (e) { return next(e); }
