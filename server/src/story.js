@@ -22,7 +22,7 @@ export function buildStory(cast, vertical) {
 // docs/talk-track.md is generated from the same data the UI reads (`npm run talk-track`); a test fails if they drift.
 export function renderTalkTrackMarkdown(cast) {
   const s = buildStory(cast, 'finance');
-  const parts = ['# Talk track', '', '<!-- Generated from server/src/data.js by `npm run talk-track`. Do not edit by hand. -->', '', `> ${s.claimLabel}: every product claim here comes from the Ping ID4AI Workforce H2 2026 deck, slides 35, 40 and 41 (release ${s.release}). Nothing here ran against a real gateway, issuer, cluster or tenant.`, ''];
+  const parts = ['# Talk track', '', '<!-- Generated from server/src/data.js by `npm run talk-track`. Do not edit by hand. -->', '', `> ${s.claimLabel}: every product claim here comes from the Ping ID4AI Workforce H2 2026 deck, slides 35, 40 and 41 (release ${s.release}). Nothing here ran against a real issuer, cluster or tenant; the only real gateway call is the optional Real-mode gateway check.`, ''];
   for (const t of s.talkTrack) parts.push(`## ${t.title}`, '', t.say, '');
   parts.push('## What the deck, the schema and our own tests leave unresolved (shown, not resolved)', '');
   for (const d of s.discrepancies) parts.push(`- **${d.title}.** ${d.text}`);

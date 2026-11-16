@@ -2,7 +2,7 @@
 
 <!-- Generated from server/src/data.js by `npm run talk-track`. Do not edit by hand. -->
 
-> Ping release claim, UNVERIFIED on our tenant: every product claim here comes from the Ping ID4AI Workforce H2 2026 deck, slides 35, 40 and 41 (release 2026-11-02). Nothing here ran against a real gateway, issuer, cluster or tenant.
+> Ping release claim, UNVERIFIED on our tenant: every product claim here comes from the Ping ID4AI Workforce H2 2026 deck, slides 35, 40 and 41 (release 2026-11-02). Nothing here ran against a real issuer, cluster or tenant; the only real gateway call is the optional Real-mode gateway check.
 
 ## Why it matters: Federated Identity (slide 40)
 

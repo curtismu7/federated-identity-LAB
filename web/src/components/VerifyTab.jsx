@@ -6,8 +6,8 @@ import { compareResults, verifyInBrowser } from "../browserVerify";
 import GatewayTrace from "../gateway-trace/GatewayTrace";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
 
-// This lab never contacts a real Privilege gateway (Mock and Live are both the lab's own simulated one), so the panel says so instead of "Real mode shows the actual gateway".
-const TRACE_NOTE = "Simulated: this lab never contacts a real Privilege gateway. Its own in-process gateway runs the fifteen checks in a fixed order, so every decision here is what it computed (\"checked\"). Live signs and verifies real RS256 on the lab's own keys; Mock reads a generated table.";
+// On the Verify tab this lab never contacts a real Privilege gateway (Mock and Live are both the lab's own simulated one; only the separate Real-mode gateway check does), so the panel says so instead of "Real mode shows the actual gateway".
+const TRACE_NOTE = "Simulated: on this tab the lab never contacts a real Privilege gateway (only the separate Real-mode gateway check does). Its own in-process gateway runs the fifteen checks in a fixed order, so every decision here is what it computed (\"checked\"). Live signs and verifies real RS256 on the lab's own keys; Mock reads a generated table.";
 
 const ISSUER_CHOICES = [["kube", "Kubernetes API server"], ["github", "GitHub Actions"], ["gitlab", "GitLab CI"], ["spire", "SPIFFE/SPIRE server"], ["private", "Private issuer"], ["attacker", "Attacker (no registered issuer)"]];
 

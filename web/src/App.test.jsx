@@ -198,7 +198,7 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
   it("Mock: every scripted verify step shows its request, response and fifteen checked decisions; the panel says the gateway is simulated", async () => {
     await mount(); await tab("Verify");
     const panel = await screen.findByTestId("gateway-trace", {}, T);
-    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/never contacts a real Privilege gateway/);
+    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/on this tab the lab never contacts a real Privilege gateway \(only the separate Real-mode gateway check does\)/);
     const first = within(panel).getByTestId("trace-1");
     expect(within(within(panel).getByTestId("trace-1-decisions")).getAllByRole("listitem").length).toBe(15);
     expect(first).toHaveTextContent(/POST https:\/\/gateway\.fabrikam\.example\/mcp/);
