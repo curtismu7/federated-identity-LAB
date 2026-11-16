@@ -12,6 +12,13 @@ test('the files the standalone rules ask for are present', () => {
   for (const f of ['README.md', 'CLAUDE.md', 'LICENSE', 'Dockerfile', 'docker-compose.yml', '.github/workflows/ci.yml', 'docs/talk-track.md', 'docs/safety.md', 'docs/content-pack.schema.json', 'scripts/build-mock-table.mjs', 'docs/shelf-entry.json', 'customer.config.example.json', 'content-pack.json', 'scripts/doctor.mjs', 'scripts/reset.mjs', 'web/src/styles/standalone-ui.css', '.gitignore', '.env.example']) assert.ok(fs.existsSync(path.join(root, f)), f);
 });
 
+test('the shelf entry notes say what goes out: the engine makes no outbound calls, the Real-mode gateway check is the one call, and only when configured', () => {
+  const n = JSON.parse(read('docs/shelf-entry.json')).demos[0].notes;
+  assert.match(n, /Mock and Live engines are loopback-only with zero outbound calls/);
+  assert.match(n, /the one call that goes out is the Real-mode Privilege gateway check, only when run with a gateway configured/);
+  assert.doesNotMatch(n, /nothing is fetched from the network/);
+});
+
 test('the shelf entry is valid and portable: relative composeFile, loopback url, health path, catalog id D107; content pack and shelf entry agree', () => {
   const e = JSON.parse(read('docs/shelf-entry.json')).demos[0];
   assert.equal(e.id, 'federated-identity-lab'); assert.equal(e.kind, 'Demo'); assert.equal(e.healthPath, '/api/health');

@@ -81,7 +81,7 @@ export async function runChecks({ env = process.env, table = MOCK_TABLE } = {}) 
   const ng = await netguardSelfTest();
   add('netguard', ng.ok ? 'pass' : 'fail', ng.ok ? `blocked fetch, socket, socket-by-IP, dns lookup, dns resolve and udp to a non-loopback host (${ng.blocked}/6)` : ng.detail);
 
-  add('tenant', 'pass', 'simulated only: no tenant, no credentials, no outbound network; every product claim is UNVERIFIED on our tenant');
+  add('tenant', 'pass', 'simulated only: no tenant, no credentials, no outbound network from the engine (only the Real-mode gateway check goes out, and only when configured); every product claim is UNVERIFIED on our tenant');
   return checks;
 }
 

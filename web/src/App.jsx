@@ -29,8 +29,8 @@ export const TABS = [
   { id: "talk", label: "Talk track" },
 ];
 // The banner is never blank and never claims one mode before it knows: until the story answers it says both, honestly.
-const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing here calls a real tenant, gateway, issuer or cluster.";
-export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode (loopback only, no outbound network). ${TAIL}`;
+const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing else touches a tenant, gateway, issuer or cluster.";
+export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode: the lab's own engine is loopback only. The Privilege gateway check goes out only in Real mode, and only when run with a gateway configured. ${TAIL}`;
 const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
 
 const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };

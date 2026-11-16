@@ -1,4 +1,4 @@
-// "What Privilege did" for the Verify tab. This lab never contacts a real Privilege gateway: the gateway is its own simulation (engine.verifyCore, fifteen steps in a
+// "What Privilege did" for the Verify tab. On this tab the lab never contacts a real Privilege gateway (only the separate Real-mode gateway check does): the gateway is its own simulation (engine.verifyCore, fifteen steps in a
 // fixed order), so every trace here is source 'mock' and every decision is 'checked': the engine computed it (Live signs and verifies real RS256 on the lab's own keys,
 // Mock reads a generated table; both are the lab's gateway). A step that was never reached is 'skipped'. Nothing is invented: a decision is one engine step, with its own
 // title and detail; the request is the one the engine's own hop records (POST to the gateway's service address, no JSON-RPC body, the token never shown, only its length);

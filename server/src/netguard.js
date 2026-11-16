@@ -1,5 +1,5 @@
 // Runtime netguard: zero real outbound. Every non-loopback socket, DNS lookup, fetch and UDP send is refused and recorded.
-// The mock issuers are in-process, so nothing in this app has a reason to leave the machine.
+// The mock issuers are in-process, so the engine has no reason to leave the machine; the one gateway origin the Real check may reach is allowed (setAllowedOrigins).
 import dns from 'node:dns';
 import net from 'node:net';
 import dgram from 'node:dgram';

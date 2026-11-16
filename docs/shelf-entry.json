@@ -9,7 +9,7 @@
       "healthPath": "/api/health",
       "composeFile": "federated-identity-LAB/docker-compose.yml",
       "composeOverlays": [],
-      "notes": "Host-run: ./scripts/run.sh (port 7400). Docker: HOST_PORT=7400 docker compose up --build -d (published on 127.0.0.1 only). Mock and Live are both loopback-only with zero outbound calls; all issuers and keys live in memory and nothing is fetched from the network.",
+      "notes": "Host-run: ./scripts/run.sh (port 7400). Docker: HOST_PORT=7400 docker compose up --build -d (published on 127.0.0.1 only). Mock and Live engines are loopback-only with zero outbound calls; the one call that goes out is the Real-mode Privilege gateway check, only when run with a gateway configured. All issuers and keys live in memory and no key set is fetched from the network.",
       "catalogId": "D107"
     }
   ]

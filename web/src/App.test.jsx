@@ -79,6 +79,12 @@ describe("shell", () => {
     expect(BANNER_UNKNOWN).toMatch(/UNVERIFIED/);
   });
 
+  it("the banner before the mode is known is honest in both modes: the engine is local, the gateway check is Real only and goes out only when configured", () => {
+    expect(BANNER_UNKNOWN).toMatch(/engine is loopback only/);
+    expect(BANNER_UNKNOWN).toMatch(/Privilege gateway check goes out only in Real mode, and only when run with a gateway configured/);
+    expect(BANNER_UNKNOWN).not.toMatch(/no outbound network|Nothing here calls/i);
+  });
+
   it("the banner and the mode chip follow the toggle, in both directions, on every tab", async () => {
     await mount();
     for (const t of TABS) {
@@ -192,7 +198,7 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
   it("Mock: every scripted verify step shows its request, response and fifteen checked decisions; the panel says the gateway is simulated", async () => {
     await mount(); await tab("Verify");
     const panel = await screen.findByTestId("gateway-trace", {}, T);
-    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/never contacts a real Privilege gateway/);
+    expect(screen.getByTestId("gateway-trace-basis")).toHaveTextContent(/on this tab the lab never contacts a real Privilege gateway \(only the separate Real-mode gateway check does\)/);
     const first = within(panel).getByTestId("trace-1");
     expect(within(within(panel).getByTestId("trace-1-decisions")).getAllByRole("listitem").length).toBe(15);
     expect(first).toHaveTextContent(/POST https:\/\/gateway\.fabrikam\.example\/mcp/);
