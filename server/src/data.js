@@ -60,13 +60,13 @@ export const MEASURED = [
 ];
 
 export const NOT_DEMONSTRATED = [
-  'Anything about how the real gateway, console, controller or a real issuer behaves: nothing here ran against one. All issuers are in-process, on .example hosts, and no key set is fetched from the network.',
+  'Anything about how the real gateway, console, controller or a real issuer behaves. The lab\'s own checks (the fifteen steps, the Live RS256 signing) never ran against a real gateway; the Real-mode check only observes a real gateway\'s reply to one listing and one refused call (what the reply says, not how the gateway decides), so its policy engine, token validation and grant logic stay unobserved. All issuers are in-process, on .example hosts, and no key set is fetched from the network.',
   'That a real gateway accepts a workload token on the MCP path or the LLM route (the deck claims it; our own earlier test did not prove it).',
   'Sidecar injection (in development), and the kubelet, the SPIRE agent and the CI runners that really mint tokens.',
   'The eBPF sensor. The reports are simulated, and the claim names the lab reads (node, pod, repository and so on) are the lab\'s flat names, not the exact shape of a real Kubernetes or GitHub token.',
   'How the real gateway treats clock skew, key-set rate limits on unknown-kid refreshes, JWKS caching headers, algorithm families other than RS256, or end-user binding (SubjectBinding and UserClaim).',
   'Per-user credentials from the vault for a workload caller (that needs a human end user), and token-pass.',
-  'Real credentials. The lab holds none. Anything credential-shaped you type is masked and never kept (the shared masker, version 1.4.0, a heuristic).',
+  'Real credentials. The lab holds no tenant credential and no secret of its own; in Real mode with a gateway configured it reads an agent key for the one gateway check, never shown, stored or put in a trace. Anything credential-shaped you type is masked and never kept (the shared masker, version 1.4.0, a heuristic).',
 ];
 
 export const FIELD_SOURCE_NAMES = { deck: 'deck claim', swagger: 'console swagger name (schema only)', reading: 'lab reading', invented: 'lab-invented', measured: 'measured (our note)' };
