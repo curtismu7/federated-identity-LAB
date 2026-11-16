@@ -84,6 +84,8 @@ test('Real: the check returns a real trace for tools/list and for the refusal pr
         assert.equal(t.request.url, `${gw.origin}/door-a/mcp`);
         assert.ok(t.decisions.length > 0 && t.decisions.every((d) => d.basis === 'observed' || d.basis === 'inferred'), 'a real decision is never "checked"');
         assert.match(t.request.headers.authorization || t.request.headers.Authorization, /^Bearer <agent key, \d+ characters, kept on the server>$/);
+        assert.equal(t.request.headers['Mcp-Session-Id'], 'sess-123… (shortened)', `${name}: the shortened session id is shown, not masked`);
+        assert.ok(!text.includes('sess-1234567890abcdef'), 'the full session id is nowhere in the answer');
       }
       assert.equal(b.trace.listing.response.status, 200);
       assert.equal(b.trace.refusal.response.status, 403);

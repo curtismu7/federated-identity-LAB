@@ -171,3 +171,58 @@ test('an NFKC expansion bomb (30,000 characters that each become eighteen) is bo
 test('the response mask changes nothing it does not have to: ordinary text, ids and hashes pass through unchanged', () => {
   for (const t of ['The token stops at the gateway.', 'payments/agent-runner pod agent-runner-7d9f', `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01`, 'https://gateway.fabrikam.example', '100% done']) assert.equal(maskResponseText(t), t);
 });
+
+// The trace's shortened Mcp-Session-Id is the one member the answer mask leaves as it is (server/src/mask.js, shownSession): one path, one value shape.
+// Every value below is built at run time.
+const SHOWN = 'sess-123… (shortened)';
+const FAKE_KEY = ['fake', 'agent', 'key'].join('-') + 'Q'.repeat(24);
+const FAKE_JWT = SECRETS.jwt;
+const traceWith = (headers, which = 'listing', side = 'request') => ({ trace: { [which]: { [side]: { headers } } } });
+const maskedMark = (v) => typeof v === 'string' && v.startsWith('[masked');
+
+test('the shortened session id is shown in trace.(listing|refusal).(request|response).headers, in any letter case of the member name', () => {
+  for (const which of ['listing', 'refusal']) {
+    for (const side of ['request', 'response']) {
+      for (const name of ['Mcp-Session-Id', 'mcp-session-id', 'MCP-SESSION-ID']) {
+        assert.equal(maskDeep(traceWith({ [name]: SHOWN }, which, side)).trace[which][side].headers[name], SHOWN, `${which}.${side}.${name}`);
+      }
+    }
+  }
+  for (const v of ['sess-123… (shortened)', 'abc', 'a1.b-c_d', '12345678']) assert.equal(maskDeep(traceWith({ 'Mcp-Session-Id': v })).trace.listing.request.headers['Mcp-Session-Id'], v, v);
+});
+
+test('the exempt member still masks a full session id, an agent key, a JWT or a bearer value, with or without the shortened suffix', () => {
+  const values = [
+    'sess-1234567890abcdef', FAKE_KEY, FAKE_JWT, SECRETS.bearer, SECRETS.assignment,
+    `${FAKE_KEY}… (shortened)`, `${FAKE_JWT}… (shortened)`, 'sess-123… (shortened) and more', 'sess-1234… (shortened)x', ' sess-123', 'sess-123\n',
+  ];
+  for (const v of values) {
+    const out = maskDeep(traceWith({ 'Mcp-Session-Id': v })).trace.listing.request.headers['Mcp-Session-Id'];
+    assert.ok(maskedMark(out), `masked: ${JSON.stringify(v).slice(0, 40)}`);
+    assert.ok(!String(out).includes(FAKE_KEY) && !String(out).includes(FAKE_JWT));
+  }
+});
+
+test('a bearer token, a cookie and an x-api-key in trace headers are masked beside the exempt member', () => {
+  const headers = { 'Mcp-Session-Id': SHOWN, Authorization: SECRETS.bearer, authorization: FAKE_JWT, Cookie: 'sid=abcdef1234567890abcdef', 'x-api-key': FAKE_KEY };
+  const out = maskDeep(traceWith(headers)).trace.listing.request.headers;
+  assert.equal(out['Mcp-Session-Id'], SHOWN);
+  for (const k of ['Authorization', 'authorization', 'Cookie', 'x-api-key']) assert.ok(maskedMark(out[k]), `${k} masked`);
+});
+
+test('a member named Mcp-Session-Id anywhere else stays masked, even with the shown value (a visitor can type that name)', () => {
+  const at = {
+    top: { 'Mcp-Session-Id': SHOWN },
+    state: { state: { 'Mcp-Session-Id': SHOWN } },
+    body: { trace: { listing: { request: { body: { 'Mcp-Session-Id': SHOWN } } } } },
+    other: { trace: { other: { request: { headers: { 'Mcp-Session-Id': SHOWN } } } } },
+    listingHeaders: { listing: { headers: { 'Mcp-Session-Id': SHOWN } } },
+    wrongSide: { trace: { listing: { decisions: { headers: { 'Mcp-Session-Id': SHOWN } } } } },
+    deeper: { trace: { listing: { request: { headers: { x: { 'Mcp-Session-Id': SHOWN } } } } } },
+    prefixed: { x: { trace: { listing: { request: { headers: { 'Mcp-Session-Id': SHOWN } } } } } },
+    otherName: { trace: { listing: { request: { headers: { 'X-Session-Id': SHOWN } } } } },
+  };
+  for (const [name, obj] of Object.entries(at)) {
+    assert.ok(!JSON.stringify(maskDeep(obj)).includes(SHOWN), `${name}: masked`);
+  }
+});

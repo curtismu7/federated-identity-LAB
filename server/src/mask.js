@@ -17,7 +17,14 @@ export const OPAQUE_KEYS = new Set(['traceparent', 'traceId', 'mintedToken', 'n'
 //   inboundTokenForwarded   the lab's own boolean (always false: the token stops at the gateway); a boolean carries no text.
 const PLACEHOLDERS = new Set(backends({ castBrand: 'x', castHost: 'x' }).map((b) => b.credential));
 const PRESET_IDS = new Set(PRESETS.map((p) => p.id));
-const labText = (key, _path, value) => (typeof value === 'string' && ((key === 'credential' && PLACEHOLDERS.has(value)) || (key === 'preset' && PRESET_IDS.has(value)))) || (key === 'inboundTokenForwarded' && typeof value === 'boolean');
+// One more value the lab itself wrote, decided by PATH and by VALUE together (never by the member name alone, which a visitor can type anywhere): the gateway hop shortens a real MCP session id
+// to its first 8 characters + "… (shortened)" at capture, and traceFromDoor puts it at trace.(listing|refusal).(request|response).headers.Mcp-Session-Id. The masker reads that name as a credential,
+// so without this the trace shows [masked:assignment]. Exempt: exactly that member, only when the value is at most 8 characters of [A-Za-z0-9._-] with the optional suffix. A full session id, an
+// agent key or a JWT cannot fit, and the same name anywhere else in an answer (top level, state, a request body, trace.other) stays masked.
+const SHOWN_SESSION_PATH = /^trace\.(?:listing|refusal)\.(?:request|response)\.headers\.mcp-session-id$/i;
+const SHOWN_SESSION_VALUE = /^[A-Za-z0-9._-]{1,8}(?:… \(shortened\))?$/;
+const shownSession = (_key, path, value) => typeof value === 'string' && SHOWN_SESSION_PATH.test(path) && SHOWN_SESSION_VALUE.test(value);
+const labText = (key, _path, value) => (typeof value === 'string' && ((key === 'credential' && PLACEHOLDERS.has(value)) || (key === 'preset' && PRESET_IDS.has(value)))) || (key === 'inboundTokenForwarded' && typeof value === 'boolean') || shownSession(key, _path, value);
 
 // maxNodes / maxTotalChars: the whole Mock table (three verticals, every scenario) is one object in the tests and in the table builder; the defaults (20,000 nodes) would cut it
 // with a [masked:too-large] mark. A request body is capped at 32 KB, so the larger bound is not a cost a visitor can drive up.
