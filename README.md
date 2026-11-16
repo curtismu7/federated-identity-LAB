@@ -193,4 +193,4 @@ tool no policy grants, so you see the gateway's own refusal shape. The gateway's
 back unaltered (keys scrubbed). Settings keys: `FID_GW_URL`, `FID_GW_APPS`,
 `FID_GW_KEY_<NAME>` (optional `FID_GW_VERSION`).
 
-In Real mode the same panel (source `real`) also shows the gateway check's two calls, `tools/list` and the refusal probe, from the shared hop's own capture (button **Show what Privilege did**, which repeats the check once). A real gateway reports no per-check detail, so each decision there is **observed** (read from the response) or **inferred** (read from the outcome), never **checked**; the agent key is redacted at capture and never appears.
+In Real mode the same panel (source `real`) also shows the gateway check's two calls, `tools/list` and the refusal probe, from the shared hop's own capture (button **Show what Privilege did**, which draws the trace the card's own check already captured, with no second gateway call). A real gateway reports no per-check detail, so each decision there is **observed** (read from the response) or **inferred** (read from the outcome), never **checked**; the agent key is redacted at capture and never appears.
