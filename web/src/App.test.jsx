@@ -207,7 +207,8 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
     await waitFor(() => expect(within(screen.getByTestId("gateway-trace")).getByText(/refused at:/)).toBeInTheDocument(), T);
   });
 
-  it("Real: the gateway card and \"Show what Privilege did\" appear only in Real; the panel is source real, shows observed or inferred decisions, never checked, and no key", async () => {
+  // A stub Privilege gateway on loopback plus the settings that point the lab's Real hop at it. run(KEY) gets the fake key the gateway echoes.
+  const withRealGateway = async (run) => {
     const KEY = ["fake", "agent", "key"].join("-") + "Q".repeat(24);
     const gw = http.createServer((req, res) => {
       let raw = ""; req.on("data", (c) => { raw += c; });
@@ -228,24 +229,43 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
     const patched = globalThis.fetch;
     globalThis.fetch = (u, init) => patched(u, init?.signal ? { ...init, signal: undefined } : init);
     try {
-      await mount();
-      expect(screen.queryByTestId("privilege-check")).toBeNull();
-      expect(screen.queryByTestId("gateway-check-trace")).toBeNull();
-      await live();
-      expect(screen.getByTestId("privilege-check")).toBeInTheDocument();
-      await click("gateway-check-trace-run");
-      const panel = await within(await screen.findByTestId("gateway-check-trace", {}, T)).findByTestId("gateway-trace", {}, T);
-      expect(panel).toHaveTextContent(/tools\/list/);
-      expect(panel).toHaveTextContent(/Refusal probe/);
-      expect(panel).toHaveTextContent(/inferred from the outcome/);
-      expect(panel).not.toHaveTextContent(/checked/i);
-      expect(document.body.textContent).not.toContain(KEY);
+      await run(KEY);
     } finally {
       globalThis.fetch = patched;
       for (const [k, v] of keep) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
       await new Promise((r) => gw.close(r));
     }
-  });
+  };
+  const gatewayChecks = () => seen.filter((s) => s.url.endsWith("/api/gateway-check")).length;
+
+  it("Real: the gateway card and \"Show what Privilege did\" appear only in Real; the panel is source real, shows observed or inferred decisions, never checked, and no key", () => withRealGateway(async (KEY) => {
+    await mount();
+    expect(screen.queryByTestId("privilege-check")).toBeNull();
+    expect(screen.queryByTestId("gateway-check-trace")).toBeNull();
+    await live();
+    expect(screen.getByTestId("privilege-check")).toBeInTheDocument();
+    // The trace is drawn from the card's own result, so the button is ready only once the card has finished its check.
+    await waitFor(() => expect(screen.getByTestId("gateway-check-trace-run")).toBeEnabled(), T);
+    await click("gateway-check-trace-run");
+    const panel = await within(await screen.findByTestId("gateway-check-trace", {}, T)).findByTestId("gateway-trace", {}, T);
+    expect(panel).toHaveTextContent(/tools\/list/);
+    expect(panel).toHaveTextContent(/Refusal probe/);
+    expect(panel).toHaveTextContent(/inferred from the outcome/);
+    expect(panel).not.toHaveTextContent(/checked/i);
+    expect(document.body.textContent).not.toContain(KEY);
+  }));
+
+  it("Real: the card's check runs once and showing the trace makes no further gateway call (the trace is the card's own result)", () => withRealGateway(async () => {
+    await mount(); await live();
+    await screen.findByText(/1 tools in \d+ ms/, {}, T); // the card finished its one check
+    expect(gatewayChecks()).toBe(1);
+    await waitFor(() => expect(screen.getByTestId("gateway-check-trace-run")).toBeEnabled(), T);
+    await click("gateway-check-trace-run");
+    const panel = await within(await screen.findByTestId("gateway-check-trace", {}, T)).findByTestId("gateway-trace", {}, T);
+    expect(panel).toHaveTextContent(/tools\/list/);
+    expect(panel).toHaveTextContent(/Refusal probe/);
+    expect(gatewayChecks()).toBe(1);
+  }));
 });
 
 describe("Verify: the real engine in Live", () => {
