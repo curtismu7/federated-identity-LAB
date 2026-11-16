@@ -118,7 +118,7 @@ export default function SensorsTab({ story, lab }) {
 
       {!ro && sensor && <ReportForm key={`r-${sensor.identityId}`} story={story} lab={lab} sensor={sensor} />}
       {!ro && sensor && <PolicyForm key={`p-${sensor.identityId}-${JSON.stringify(sensor.policy)}`} story={story} lab={lab} sensor={sensor} />}
-      {ro && sensors[0]?.policy && <section className="panel"><h3 className="panel__sub">Policy</h3><Json value={sensors[0].policy} label="policy" /></section>}
+      {ro && sensors[0]?.policy && <section className="panel"><h3 className="panel__sub">Policy</h3><Json value={sensors[0].policy} label="policy" hot={["mode", "actions", "effect"]} /></section>}
 
       <section className="panel" data-testid="findings-panel">
         <h2 className="panel__title">Findings, attributed to the node in the token <ClaimTag /></h2>
