@@ -117,7 +117,7 @@ Other variables: `VITE_PORT` (Vite dev server, default 7401, `npm run dev -w web
 
 The header has a **Mock / Live** toggle on every page, and the banner and the mode chip show the same mode. Mock reads tables generated from the engine (fourteen scripted scenarios per vertical; a scenario picker on the Verify tab) and is read-only: every write control is off and the API answers 409. Live drives this workspace's engine (one per vertical): the token editor, the issuers, the clock, identities, keys, sensors and the policy.
 
-**What Privilege did (Rule 25).** Under the Verify result (and under each scripted verify step in Mock) the page shows the call to the gateway through the family's shared `GatewayTrace`: the exact request, the exact response (both in the shared JSON pane) and the fifteen decisions between them. This lab never contacts a real Privilege gateway: the gateway is its own simulation, so every decision is marked **checked** (the engine computed it) and a step the verification never reached is "not reached". The visitor's token is never in the trace, only its length. Files: `web/src/gateway-trace/` and `server/src/gatewayTrace.js` (vendored byte-for-byte, pinned by `gateway-trace.sha256`), the lab's own builder is `server/src/verifyTrace.js`. The stored-key call and the sensor report are not traced.
+**What Privilege did (Rule 25).** Under the Verify result (and under each scripted verify step in Mock) the page shows the call to the gateway through the family's shared `GatewayTrace`: the exact request, the exact response (both in the shared JSON pane) and the fifteen decisions between them. On the Verify tab this lab never contacts a real Privilege gateway: the gateway is its own simulation, so every decision is marked **checked** (the engine computed it) and a step the verification never reached is "not reached". The visitor's token is never in the trace, only its length. Files: `web/src/gateway-trace/` and `server/src/gatewayTrace.js` (vendored byte-for-byte, pinned by `gateway-trace.sha256`), the lab's own builder is `server/src/verifyTrace.js`. The stored-key call and the sensor report are not traced.
 
 ## Health, doctor and reset
 
@@ -169,3 +169,28 @@ On Node 26: 393 tests pass (274 server, 91 web, 28 scripts).
 ## Not done
 
 No SE k8s build (deferred by the owner, 2026-10-31). Every product claim stays UNVERIFIED until it is measured on a tenant that has the release, in particular that the MCP gateway accepts a workload token (our own earlier test did not prove it). Sidecar injection, SubjectBinding and UserClaim, token-pass and per-user vault credentials for workload callers are not modelled. The deck's slide 35 versus 57 naming conflict is flagged, not resolved.
+
+---
+
+## Real mode: through the PingOne Privilege gateway
+
+Real mode here is one live call through a PingOne Privilege gateway
+(the origin you set in `FID_GW_URL`) with an agent access key from the shared settings
+file (`~/Development/.env`, or the file `STANDALONE_ENV` names).
+
+**Privilege objects this lab uses:**
+
+| Object | Value |
+|---|---|
+| Gateway | the origin in `FID_GW_URL` (a PingOne Privilege gateway you can reach) |
+| Agentic App | one named in `FID_GW_APPS` (for example `aggregate-limited`), client path `/<app>/mcp` |
+| Caller | agent access key `FID_GW_KEY_LAB_AGENT` (write-only, never shown) |
+| Backend | `aggregate` = the gateway's MCP aggregate over `opensearch` (9 tools) + `banking-mcp` (33 tools); `aggregate-limited` = the same members with a tool filter |
+
+**What runs in Real:** the **Privilege gateway check** (`POST /api/gateway-check`, card on the
+page) — one live `tools/list` through the Agentic App with the key, then one `tools/call` probe of a
+tool no policy grants, so you see the gateway's own refusal shape. The gateway's words come
+back unaltered (keys scrubbed). Settings keys: `FID_GW_URL`, `FID_GW_APPS`,
+`FID_GW_KEY_<NAME>` (optional `FID_GW_VERSION`).
+
+In Real mode the same panel (source `real`) also shows the gateway check's two calls, `tools/list` and the refusal probe, from the shared hop's own capture (button **Show what Privilege did**, which repeats the check once). A real gateway reports no per-check detail, so each decision there is **observed** (read from the response) or **inferred** (read from the outcome), never **checked**; the agent key is redacted at capture and never appears.

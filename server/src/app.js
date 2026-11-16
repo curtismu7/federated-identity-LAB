@@ -19,6 +19,20 @@ import { liveVerifyTrace, withMockVerifyTraces } from './verifyTrace.js';
 import { maskDeep, maskStatic } from './mask.js';
 import { shelfInfo } from './shelfLink.js';
 import { buildMethodTable, charsetProblem, isPageAddress, methodNotAllowed } from './shared/hygiene.js';
+import { doorConfig, createRealDoor } from './gatewayReal.js';
+import { traceFromDoor } from './gatewayTrace.js';
+import { setAllowedOrigins } from './netguard.js';
+
+// Real mode = the shared gateway hop: an agent key from the shared settings file calling a live Privilege door.
+// The environment wins over the file: FID_* variables overlay the parsed file text.
+export function realDoorFrom(env = process.env) {
+  const p = env.STANDALONE_ENV || `${env.HOME || ''}/Development/.env`;
+  let text = '';
+  try { text = fs.readFileSync(p, 'utf8'); } catch { /* the environment may still carry the keys */ }
+  for (const [k, v] of Object.entries(env)) if (k.startsWith('FID_GW_') && v) text += `\n${k}=${v}`;
+  const cfg = doorConfig(text, 'FID');
+  return cfg.ok ? createRealDoor({ config: cfg, capture: true, clientInfo: { name: 'federated-identity-lab', version: '0.1.0' } }) : null;
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = process.env.WEB_DIST || path.resolve(HERE, '../../web/dist');
@@ -80,6 +94,30 @@ export function createApp({ health = createHealth({ demoId: 'federated-identity-
     return res.json({ mode: current, source: toSource(current), realAvailable: true, realReason: null });
   });
 
+
+  // One real gateway check: tools/list through the door with the agent key, then the gateway's refusal
+  // for a tool nothing grants. Independent of the lab's local Live engine.
+  on('post', '/gateway-check', async (req, res) => {
+    noStore(res);
+    if (current !== 'live') return res.status(409).json({ error: 'mock_mode', message: 'Mock never calls a gateway. Switch to Real to run the gateway check.' });
+    const door = realDoorFrom();
+    if (!door) return res.status(409).json({ error: 'real_not_available', message: 'Set FID_GW_URL, FID_GW_APPS and at least one FID_GW_KEY_<NAME> in the shared settings file.' });
+    if (req.body && Object.keys(req.body).some((k) => !['app', 'caller'].includes(k))) return res.status(400).json({ error: 'bad_request', detail: 'the only accepted body fields are { "app", "caller" }' });
+    const app = String(req.body?.app || door.apps[0]);
+    if (!door.apps.includes(app)) return res.status(400).json({ error: 'bad_app', detail: `app must be one of ${door.apps.join(', ')}` });
+    const caller = req.body?.caller && door.callers.some((c) => c.id === req.body.caller) ? req.body.caller : door.callers[0].id;
+    setAllowedOrigins([door.origin]); // the netguard lets the Real hop reach exactly this gateway origin and nothing else
+    const { wire: listWire, ...listing } = await door.list(app, caller);
+    const out = { app, caller, gateway: door.origin, listing };
+    // "What Privilege did" (Rule 25): a Real trace is built from the hop's own capture, so every decision is observed or inferred, never checked.
+    const trace = { listing: traceFromDoor({ ...listing, wire: listWire }, { rpcMethod: 'tools/list' }) };
+    if (listing.ok) {
+      const { wire: probeWire, ...probe } = await door.call(app, caller, 'federated_identity_refusal_probe_tool', {});
+      out.refusal = probe;
+      trace.refusal = traceFromDoor({ ...probe, wire: probeWire }, { rpcMethod: 'tools/call' });
+    }
+    res.json({ ...out, trace });
+  });
   on('get', '/state', workspace, (req, res) => {
     const id = req.ws;
     noStore(res);
