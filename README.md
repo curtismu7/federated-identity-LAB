@@ -90,7 +90,7 @@ Open http://localhost:7400/. Or in one step: `./scripts/run.sh` (installs and bu
 
 ## Settings file
 
-All standalone apps read one settings file, `~/Development/.env`, which must be mode 600. `STANDALONE_ENV` overrides its path. This lab needs none of it. It parses the file (`util.parseEnv`) and takes exactly one optional key into its environment; no other key from the file ever enters it (the Real-mode gateway check reads its own `FID_GW_*` keys, see Real mode):
+All standalone apps read one settings file, `~/Development/.env`, which must be mode 600. `STANDALONE_ENV` overrides its path. This lab needs none of it. It parses the file (`util.parseEnv`) and takes exactly one optional key into its environment; no other key from the file ever enters it (the Real-mode gateway check reads its own `FID_GW_*` keys from the file or the environment, see Real mode):
 
 - `FID_LAB_MODE` (optional): `mock` (default) or `live`, the mode the page opens in. The header toggle switches per visit. A bare `MODE` in the shared file is ignored, because it may belong to another app.
 
@@ -176,7 +176,7 @@ No SE k8s build (deferred by the owner, 2026-10-31). Every product claim stays U
 
 Real mode here is one live call through a PingOne Privilege gateway
 (the origin you set in `FID_GW_URL`) with an agent access key from the shared settings
-file (`~/Development/.env`, or the file `STANDALONE_ENV` names).
+file (`~/Development/.env`, or the file `STANDALONE_ENV` names) or the environment, which wins.
 
 **Privilege objects this lab uses:**
 
