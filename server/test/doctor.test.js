@@ -41,9 +41,9 @@ test('the settings file: absent is fine, a world-readable one is flagged, its va
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the tenant check says what is true: no tenant credential and no secret of its own, and the Real-mode gateway check reads an agent key from the settings file', async () => {
+test('the tenant check says what is true: no tenant credential and no secret of its own, and the Real-mode gateway check reads an agent key from the settings file or the environment', async () => {
   const d = (await runChecks({ env: { HOME: '/nonexistent' } })).find((x) => x.id === 'tenant').detail;
   assert.match(d, /no tenant credential and no secret of its own/);
-  assert.match(d, /only the Real-mode gateway check goes out, only when configured, with an agent key read from the settings file/);
+  assert.match(d, /only the Real-mode gateway check goes out, only when configured, with an agent key read from the settings file or the environment/);
   assert.doesNotMatch(d, /no credentials,/);
 });

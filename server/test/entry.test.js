@@ -25,7 +25,7 @@ test('no source file evals, uses vm or Function, builds a regular expression fro
   }
 });
 
-test('the server holds no credential for any platform: no source reads a token, key or password from the environment or a file', () => {
+test('no source except credentials.js and mask.js reads a credential-named environment variable (process.env.*TOKEN, SECRET, PASSWORD or KEY)', () => {
   const dir = new URL('../src/', import.meta.url);
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js') && x !== 'credentials.js' && x !== 'mask.js')) {
     const code = fs.readFileSync(new URL(f, dir), 'utf8');

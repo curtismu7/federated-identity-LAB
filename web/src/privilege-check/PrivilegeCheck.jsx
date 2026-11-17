@@ -117,7 +117,7 @@ export default function PrivilegeCheck({ apiBase = '', title = 'Privilege gatewa
             </div>
           )}
 
-          <p className="pcard__how">Real mode here = one live call through the PingOne Privilege gateway with an agent access key from the shared settings file. The key is write-only and never shown.</p>
+          <p className="pcard__how">Real mode here = one live call through the PingOne Privilege gateway with an agent access key from the settings file or the environment. The key is write-only and never shown.</p>
         </>
       )}
     </section>
