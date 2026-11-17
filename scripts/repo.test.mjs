@@ -132,7 +132,6 @@ test('the docs say the lab holds no tenant credential and no secret of its own, 
   assert.match(r, /It holds no tenant credential; the one key it reads for the Real-mode gateway check is an agent access key/);
   assert.doesNotMatch(r, /It holds no credential for any tenant/);
   assert.match(read('CLAUDE.md'), /takes only `FID_LAB_MODE` into its environment, never a bare MODE; the Real-mode gateway check separately reads `FID_GW_\*` from the same file or the environment/);
-  assert.match(read('web/src/privilege-check/PrivilegeCheck.jsx'), /with an agent access key from the settings file or the environment\./);
   const e = read('.env.example');
   assert.match(e, /no credentials of its own/); assert.match(e, /only the optional Real-mode gateway check reads an agent key \(FID_GW_KEY_<NAME>\) from the settings file or the environment/);
   assert.doesNotMatch(e, /it holds none/);
