@@ -160,7 +160,7 @@ export default function App() {
         <p className="banner" role="status" data-state={mode === "live" ? "live" : "mock"} data-testid="banner">{banner}</p>
         {modeError && <p className="app-error" role="alert" data-testid="mode-error">{modeError}</p>}
         {!presenter && story && <p className="page-intro">{story.intro}</p>}
-        {mode === "live" && <><PrivilegeCheck onResult={setGateway} /><GatewayCheckTrace result={gateway} /></>}
+        {mode === "live" && <><PrivilegeCheck primaryRetry onResult={setGateway} /><GatewayCheckTrace result={gateway} /></>}
         <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
         <div id={`panel-${tab}`} className="page-panel">
           {error || lab.error ? <p className="app-error" role="alert">Could not load the lab ({error || lab.error}). Is the server running?</p> : !ready ? <p className="muted">Loading...</p> : (
