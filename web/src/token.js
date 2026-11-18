@@ -1,5 +1,7 @@
 // Browser-side token helpers: decode a pasted token for display (never trusted, never sent anywhere), and tamper with it the way the lab shows.
-const dec = (s) => { try { const p = s.replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(p + "=".repeat((4 - (p.length % 4)) % 4)); return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)))); } catch { return null; } };
+// Rule 24b: segment decoding is the shared pane's (null-on-error kept); the tamper encoder stays lab-own (it re-signs a modified payload).
+import { decodeSegment } from "./components/JsonPane.jsx";
+const dec = (s) => { try { return decodeSegment(s); } catch { return null; } };
 const enc = (obj) => { const bytes = new TextEncoder().encode(JSON.stringify(obj)); let bin = ""; bytes.forEach((b) => { bin += String.fromCharCode(b); }); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
 
 export function decodeToken(token) {
