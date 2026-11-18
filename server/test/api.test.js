@@ -18,7 +18,7 @@ test('health, info and story answer; the story fills every token for every verti
     for (const v of ['finance', 'health', 'retail']) {
       const s = await json(await get(url, `/api/story?vertical=${v}`));
       assert.ok(!/\{\{/.test(JSON.stringify(s)), v);
-      assert.equal(s.vertical, v); assert.equal(s.steps.length, 15); assert.equal(s.deploymentModels.length, 5); assert.equal(s.presets.length, 35);
+      assert.equal(s.vertical, v); assert.equal(s.steps.length, 15); assert.equal(s.deploymentModels.length, 5); assert.equal(s.presets.length, 37);
     }
     assert.equal((await json(await get(url, '/api/story?vertical=__proto__'))).vertical, 'finance');
   });
@@ -28,7 +28,7 @@ test('the state: Mock gives a generated scenario, Live gives the workspace engin
   await withServer(async (url) => {
     const m = await json(await get(url, '/api/state?mode=mock&vertical=finance&scenario=fork-pr'));
     const l = await json(await get(url, '/api/state?mode=live&vertical=finance'));
-    assert.equal(m.scenario.id, 'fork-pr'); assert.equal(m.scenarios.length, 14);
+    assert.equal(m.scenario.id, 'fork-pr'); assert.equal(m.scenarios.length, 15);
     assert.deepEqual(Object.keys(m.state).sort(), Object.keys(l.state).sort(), 'one shape for both');
     assert.equal(l.state.identities.length, 5);
     assert.equal((await json(await get(url, '/api/state?mode=mock&scenario=nope'))).scenario.id, 'one-credential');

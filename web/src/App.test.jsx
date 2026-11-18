@@ -184,7 +184,7 @@ describe("Verify: Mock scenarios, read-only", () => {
   it("shows a scripted scenario with its steps; the fork-PR scenario ends in subject_mismatch and shows all fifteen steps", async () => {
     await mount(); await tab("Verify");
     expect(await screen.findByTestId("scenarios", {}, T)).toBeInTheDocument();
-    expect((await within(screen.getByTestId("scenarios")).findAllByRole("option")).length).toBe(14);
+    expect((await within(screen.getByTestId("scenarios")).findAllByRole("option")).length).toBe(15);
     expect(screen.queryByTestId("editor")).toBeNull();
     await pick("scenario-pick", "fork-pr");
     await waitFor(() => expect(screen.getByTestId("scenario-say")).toHaveTextContent(/pull request/), T);
