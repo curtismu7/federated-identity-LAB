@@ -326,6 +326,10 @@
         "type": "route",
         "href": "/#verify"
       },
+      "terms": [
+        "exact-binding",
+        "deployment-models"
+      ],
       "story": "S12"
     },
     {
