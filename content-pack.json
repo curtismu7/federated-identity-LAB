@@ -318,8 +318,23 @@
       "story": "S11"
     },
     {
+      "id": "try-spiffe-binding",
+      "label": "Scenario 12: SPIFFE: valid, mismatched and untrusted",
+      "description": "A JWT-SVID for the right SPIFFE ID is allowed to the peer agent; another workload in the same trust domain and the right SPIFFE ID from an untrusted issuer are each refused at their own step.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#verify"
+      },
+      "terms": [
+        "exact-binding",
+        "deployment-models"
+      ],
+      "story": "S12"
+    },
+    {
       "id": "try-platforms",
-      "label": "Scenario 12: Four platforms, one gateway",
+      "label": "Scenario 13: Four platforms, one gateway",
       "description": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way.",
       "group": "try-it",
       "action": {
@@ -329,11 +344,11 @@
       "terms": [
         "deployment-models"
       ],
-      "story": "S12"
+      "story": "S13"
     },
     {
       "id": "try-sensor",
-      "label": "Scenario 13: The sensor reports with its own token",
+      "label": "Scenario 14: The sensor reports with its own token",
       "description": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay.",
       "group": "try-it",
       "action": {
@@ -344,11 +359,11 @@
         "self-hosted-agents",
         "node-from-claims"
       ],
-      "story": "S13"
+      "story": "S14"
     },
     {
       "id": "try-enforcement",
-      "label": "Scenario 14: Enforcement: audit first, then enforce",
+      "label": "Scenario 15: Enforcement: audit first, then enforce",
       "description": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated.",
       "group": "try-it",
       "action": {
@@ -358,7 +373,7 @@
       "terms": [
         "enforcement-policy"
       ],
-      "story": "S14"
+      "story": "S15"
     },
     {
       "id": "try-tamper",
@@ -537,16 +552,21 @@
     },
     {
       "id": "S12",
+      "title": "SPIFFE: valid, mismatched and untrusted",
+      "say": "A JWT-SVID for the right SPIFFE ID is allowed to the peer agent; another workload in the same trust domain and the right SPIFFE ID from an untrusted issuer are each refused at their own step."
+    },
+    {
+      "id": "S13",
       "title": "Four platforms, one gateway",
       "say": "GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way."
     },
     {
-      "id": "S13",
+      "id": "S14",
       "title": "The sensor reports with its own token",
       "say": "Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay."
     },
     {
-      "id": "S14",
+      "id": "S15",
       "title": "Enforcement: audit first, then enforce",
       "say": "A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated."
     }

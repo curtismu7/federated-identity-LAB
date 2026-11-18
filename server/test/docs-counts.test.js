@@ -24,7 +24,7 @@ test('the scenario count in the docs is the number of scripted scenarios, in eve
   const counts = Object.values(VERTICALS).map((c) => scenarioList(c).length);
   const N = counts[0];
   assert.ok(counts.every((n) => n === N), 'the same scenarios in every vertical');
-  assert.equal(N, 14);
+  assert.equal(N, 15);
   for (const v of Object.keys(VERTICALS)) assert.equal(MOCK_TABLE.verticals[v].scenarios.length, N, `mock table ${v}`);
   const list = stated(new RegExp(`${NUM}\\s+scripted\\s+scenarios`, 'gi'));
   assert.ok(list.length >= 2, 'README and CLAUDE.md both state it');
@@ -47,5 +47,5 @@ test('the preset, lookalike, step, diagram and doctor counts in the docs match t
   // npm run doctor prints the shared checks, then the HTTP cycle and the port check (scripts/doctor.mjs)
   const total = (await runChecks()).length + 2;
   for (const s of stated(new RegExp(`${NUM} checks`, 'gi'))) assert.equal(s.n, total, `${s.file}: ${s.text}`);
-  assert.equal(PRESETS.length, 35); assert.equal(lookalikes, 8); assert.equal(STEPS.length, 15); assert.equal(DIAGRAM_NAMES.length, 3);
+  assert.equal(PRESETS.length, 37); assert.equal(lookalikes, 8); assert.equal(STEPS.length, 15); assert.equal(DIAGRAM_NAMES.length, 3);
 });

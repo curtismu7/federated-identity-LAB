@@ -97,9 +97,10 @@ Everything here is a Ping release claim, unverified on our tenant. Two things to
 9. **A private issuer with pinned keys.** The private issuer has no address to fetch from. After it rotates its key the pinned set has no such kid and nothing to refresh from, until the keys are pinned again.
 10. **Revocation and per-deployment attribution.** Two pods of one ServiceAccount are attributed separately. Revoke the identity: the very next request is refused. Restore it, then remove it: the gateway can find no identity for the token.
 11. **A key owned by an identity, or by a person.** A key can name an identity as its owner; the console refuses two contradictory forms. When the person who owns a stored key goes inactive that key stops, and the identity-owned key does not. An identity with no key behind it authenticates nobody.
-12. **Four platforms, one gateway.** GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way.
-13. **The sensor reports with its own token.** Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay.
-14. **Enforcement: audit first, then enforce.** A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated.
+12. **SPIFFE: valid, mismatched and untrusted.** A JWT-SVID for the right SPIFFE ID is allowed to the peer agent; another workload in the same trust domain and the right SPIFFE ID from an untrusted issuer are each refused at their own step.
+13. **Four platforms, one gateway.** GitHub Actions to MCP, GitLab CI to the LLM provider, a SPIFFE JWT-SVID to a peer agent, and a private issuer with pinned keys: each verified the same way.
+14. **The sensor reports with its own token.** Enrol a sensor and it reports with a token minted for a generated audience. The node comes from the token: a forged node in the body is ignored. A token for another audience is refused. Revoke the identity and the next report is refused; the findings stay.
+15. **Enforcement: audit first, then enforce.** A policy bound to the sensor's identity: in audit mode a denied finding is recorded as would-have-blocked; in enforce mode the same report is blocked; a finding outside the named namespaces is not evaluated.
 
 ## Not demonstrated
 
