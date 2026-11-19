@@ -30,7 +30,7 @@ function IdentityForm({ story, lab, edit, onDone }) {
   };
   return (
     <section className="panel" data-testid={edit ? "identity-edit" : "identity-create"}>
-      <h3 className="panel__sub">{edit ? `Edit ${visible(edit.name)}` : "Create a Federated Identity"} <SourceTag source="swagger" label="fields: console swagger names (schema only)" /></h3>
+      <h3 className="panel__sub"><span className="step-num" aria-hidden="true">2</span>{edit ? `Edit ${visible(edit.name)}` : "Create a Federated Identity"} <SourceTag source="swagger" label="fields: console swagger names (schema only)" /></h3>
       <div className="filters">
         <label>Name<input value={f.name} onChange={set("name")} data-testid="i-name" /></label>
         <label>Platform (a UI hint)<select value={f.platform} onChange={set("platform")} data-testid="i-platform">{story.platforms.map((p) => <option key={p} value={p}>{p}</option>)}</select></label>
@@ -72,7 +72,7 @@ export default function IdentitiesTab({ story, lab }) {
     <div className="stack">
       {ro && <p className="muted" data-testid="read-only-note">Mock only reads tables: switch to Live to create, edit, revoke or remove identities and keys.</p>}
       <section className="panel">
-        <h2 className="panel__title">Federated Identity <ClaimTag /> <AvailTag value="GA (slide tag)" /></h2>
+        <h2 className="panel__title"><span className="step-num" aria-hidden="true">1</span>Federated Identity <ClaimTag /> <AvailTag value="GA (slide tag)" /></h2>
         <p className="lesson">Platform-issued short-lived identity for agents: nothing long-lived is stored in the workload. One identity binds <strong>one issuer, one subject and one audience, exactly</strong>, with an <strong>enforced lifetime</strong> (default one hour), optional <strong>pinned claims</strong>, and a <strong>key set</strong> the gateway validates, refreshes and keeps through outages.</p>
         <p className="muted" data-testid="naming-note"><strong>Naming.</strong> Federated Identity is the new display name of Non-Human Identity (deck slide 35). The console API object is <strong>still</strong> <code>NonHumanIdentity</code> at <code>/v1/nonhumanidentities</code> (console swagger, 2026-10-31, schema only). Slide 57 of the deck still says "Non-Human Identity": we follow slide 35 and flag the inconsistency. Self-Hosted Agents is the new name of "NHI Agents Discovery and Enforcement".</p>
         <p className="muted" data-testid="mcp-note"><strong>What we measured, and what we did not.</strong> The deck says Federated Identity is accepted across the MCP and LLM gateways with identical verification. Our own earlier test of the MCP path did not prove it (measured, our note, 2026-10-21: 401 on both routes, no accepted or rejected line logged). The lab implements the deck's claim and proves nothing about the product.</p>
@@ -108,7 +108,7 @@ export default function IdentitiesTab({ story, lab }) {
       {!ro && (editTarget ? <IdentityForm key={editTarget.id} story={story} lab={lab} edit={editTarget} onDone={() => setEditing(null)} /> : <IdentityForm story={story} lab={lab} />)}
 
       <section className="panel" data-testid="keys-panel">
-        <h2 className="panel__title">A key owned by an identity, or by a person <ClaimTag /></h2>
+        <h2 className="panel__title"><span className="step-num" aria-hidden="true">3</span>A key owned by an identity, or by a person <ClaimTag /></h2>
         <p className="muted">Slide 40: an agent access key can name a Federated Identity as the principal it acts as, instead of borrowing a human owner, so a fully autonomous agent gets a real principal in audit and policy; that identity supplies the verification material. In the console swagger the key field is <code>CustodianRef</code>, which names a <code>NonHumanIdentity</code> (schema only). An identity with no key behind it authenticates nobody (measured, our note).</p>
         <div className="scroll"><table className="tbl tbl--wide" data-testid="keys">
           <caption>Keys ({s.keys.length} of {s.limits.keys})</caption>
@@ -127,7 +127,7 @@ export default function IdentitiesTab({ story, lab }) {
             </tr>))}
           </tbody>
         </table></div>
-        <h3 className="panel__sub">Create a key</h3>
+        <h3 className="panel__sub"><span className="step-num" aria-hidden="true">4</span>Create a key</h3>
         <div className="filters">
           <label>Name<input value={keyName} onChange={(e) => setKeyName(e.target.value)} data-testid="k-name" /></label>
           <label>Owner<select value={owner} onChange={(e) => setOwner(e.target.value)} data-testid="k-owner">{ownerChoices.map(([v, t]) => <option key={v} value={v}>{visible(t)}</option>)}</select></label>
@@ -141,7 +141,7 @@ export default function IdentitiesTab({ story, lab }) {
         <p className="muted">The last two are refused by the console (measured, our note, 2026-10-21): the two forms are mutually exclusive, and the owner and the user reference must not be different principals. Narrowing only: a key's scopes must be within its identity's (lab reading).</p>
         <Outcome last={lab.last} prefix="/api/keys" />
 
-        <h3 className="panel__sub">The contrast: a stored key that borrows a person</h3>
+        <h3 className="panel__sub"><span className="step-num" aria-hidden="true">5</span>The contrast: a stored key that borrows a person</h3>
         <p className="muted">A stored key is a standing secret owned by a person. If that person's account goes inactive the key stops (measured, our note); a key owned by an identity is not tied to anyone's account. The lab never shows a stored secret.</p>
         <div className="toggles">
           {people.map((p) => <button key={p.id} type="button" aria-pressed={p.active} disabled={ro || lab.busy} onClick={() => lab.act("PUT", `/api/people/${p.id}`, { person: { active: !p.active } })} data-testid={`person-${p.id}`}>{visible(p.id)}: {p.active ? "active" : "inactive"} (click to toggle)</button>)}
