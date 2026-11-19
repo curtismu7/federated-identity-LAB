@@ -37,6 +37,11 @@ textarea { width: 100%; display: block; font-family: var(--font-mono); font-size
 .stack > * { min-width: 0; }
 .cols { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: start; }
 .cols > * { min-width: 0; }
+@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+/* Numbered step badge next to panel headings (the page reads top to bottom). */
+.step-num { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-gradient); color: var(--on-accent); font: 700 12px var(--font-mono);
+  margin-right: 8px; vertical-align: 2px; }
 .panel { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 12px 14px; min-width: 0; }
 .panel[data-state="warn"] { border-color: var(--status-warn); }
 .panel[data-state="bad"] { border-color: var(--danger-text); }
