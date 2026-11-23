@@ -34,6 +34,8 @@ export const TABS = [
 const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing else touches a tenant, gateway, issuer or cluster.";
 export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode: the lab's own engine is loopback only. The Privilege gateway check goes out only in Real mode, and only when run with a gateway configured. ${TAIL}`;
 const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
+// Tabs that draw their own primary action. The gateway card's button is primary only on the other tabs (one primary per view state).
+const OWN_PRIMARY_TABS = ["identities", "verify", "sensors", "diagram"];
 
 const tabFromHash = () => { const h = window.location.hash.replace("#", ""); return TABS.some((t) => t.id === h) ? h : "identities"; };
 
@@ -168,7 +170,7 @@ export default function App() {
           <>
             {/* the card starts a check when it opens and on its own button; the run panel below waits for it (a click on a button in the card counts) */}
             <div onClickCapture={(e) => { if (e.target.closest?.("button")) setCheck({ phase: "checking" }); }}>
-              <PrivilegeCheck primaryRetry onResult={onCheck} />
+              {OWN_PRIMARY_TABS.includes(tab) ? <PrivilegeCheck onResult={onCheck} /> : <PrivilegeCheck primaryRetry onResult={onCheck} />}
             </div>
             <GatewayCheckTrace result={gateway} />
             <RunObs source="real" vertical={vertical} check={check} />
