@@ -317,13 +317,14 @@ export async function realRecord(run, { clock = Date.now } = {}) {
   return out;
 }
 
+const RUN_ID = /^gw-[0-9a-f]{6}-\d+$/; // the shape createRunLog gives a gateway check's id
 // The route's answer. The mode is the page's wire value: only 'real' and 'mock' make a record, and anything else answers a plain note (no Real wording, no record).
 // A Real run is only ever returned in Real and a Mock record only in Mock: the run is built from this mode's own source.
 export async function answerFor({ source, table, runLog, query, verticalOf }) {
   const fail = (status, error, message) => ({ status, body: { error, message } });
   if (!Object.keys(query).every((k) => ['vertical', 'scenario', 'runId'].includes(k))) return fail(400, 'unknown_field', 'the query carries a parameter the lab does not take');
   if (source === 'real') {
-    if (query.runId !== undefined && typeof query.runId !== 'string') return fail(400, 'bad_run_id', 'runId must be one id');
+    if (query.runId !== undefined && (typeof query.runId !== 'string' || !RUN_ID.test(query.runId))) return fail(400, 'bad_run_id', 'runId must be one run id (gw-, six hex, a counter)');
     const run = runLog.get(query.runId);
     if (!run) return { status: 200, body: { record: null, message: query.runId === undefined ? 'No gateway check has run in Real yet: nothing was received from the gateway, so there is nothing to show.' : 'That gateway check is no longer kept (the lab keeps the last few).' } };
     return { status: 200, body: { record: await realRecord(run) } };

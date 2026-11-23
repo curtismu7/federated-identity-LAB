@@ -224,6 +224,11 @@ test('the route answers errors as {error, message} JSON, takes only its own para
     await toReal(url);
     assert.equal((await get(url, '/api/run-observability?runId=a&runId=b')).status, 400); assert.equal((await get(url, '/api/run-observability?runId[x]=1')).status, 400);
     const bad = await (await get(url, '/api/run-observability?runId=a&runId=b')).json(); assert.equal(bad.error, 'bad_run_id');
+    // an empty or malformed run id is a 400 too, never "no longer kept": only a well-formed id that is not kept is a 200 with no record
+    for (const id of ['', '../x', 'gw-1', 'gw-ABCDEF-1']) {
+      const r = await get(url, `/api/run-observability?runId=${encodeURIComponent(id)}`);
+      assert.equal(r.status, 400, `runId=${id}`); assert.equal((await r.json()).error, 'bad_run_id', `runId=${id}`);
+    }
   });
 });
 
@@ -541,11 +546,15 @@ test('one failed write does not drop the rest of an action\'s lines, and stderr 
     return { answers, audit: JSON.stringify(workspaces.peek('w-obs-write', 'finance').s.audit) };
   };
   const base = []; const baseline = await run((l) => base.push(l));
+  // The write that fails must NOT be the last line of its action, or a loop that drops the rest of the action would pass unseen.
+  const runOf = (l) => l.match(/ run=(\S+)/)?.[1];
+  const DROP = base.findIndex((l, i) => i + 1 < base.length && runOf(base[i + 1]) === runOf(l));
+  assert.ok(DROP >= 0, 'the run has an action with two or more lines');
   const got = []; let n = 0; let thrown;
-  const err = await stderrOf(async () => { thrown = await run((l) => { if (++n === 3) throw Object.assign(new Error(`disk full ${KEY} https://gateway.example.invalid`), { code: 'E_DISK' }); got.push(l); }); });
+  const err = await stderrOf(async () => { thrown = await run((l) => { if (++n === DROP + 1) throw Object.assign(new Error(`disk full ${KEY} https://gateway.example.invalid`), { code: 'E_DISK' }); got.push(l); }); });
   assert.equal(n, base.length, 'every line was still tried');
   const same = (l) => l.split(' ').slice(1).join(' ').replace(/ run=\S+$/, '').replace(/ labtime=\S+/, '');
-  assert.deepEqual(got.map(same), base.filter((_l, i) => i !== 2).map(same), 'all lines but the one that could not be written');
+  assert.deepEqual(got.map(same), base.filter((_l, i) => i !== DROP).map(same), 'all lines but the one that could not be written');
   assert.deepEqual(thrown.answers, baseline.answers); assert.equal(thrown.audit, baseline.audit);
   assert.equal([...err.matchAll(/run observability: live-line E_DISK/g)].length, 1, 'the failure is reported once, on stderr');
   assert.ok(!err.includes(KEY) && !/gateway\.example|disk full/.test(err), err);
