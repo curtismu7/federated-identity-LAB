@@ -18,6 +18,7 @@ import TalkTrackDialog from "./talk-track/TalkTrackDialog.jsx";
 import { getJson, postJson, resetWorkspace } from "./api";
 import PrivilegeCheck from "./privilege-check/PrivilegeCheck.jsx";
 import GatewayCheckTrace from "./components/GatewayCheckTrace";
+import RunObs from "./components/RunObs";
 
 export const TABS = [
   { id: "identities", label: "Federated Identity" },
@@ -61,6 +62,9 @@ export default function App() {
   const [pending, setPending] = useState(null);
   const [verifyUi, setVerifyUi] = useState(null);
   const [gateway, setGateway] = useState(null); // the gateway card's last finished check (its onResult), which "What Privilege did" draws
+  // Rule 27: the card's current check. It is "checking" from the moment its button is pressed until its answer arrives, so the run panel asks for THAT check's record and never shows an older one.
+  const [check, setCheck] = useState({ phase: "checking" });
+  const onCheck = useCallback((r) => { setGateway(r); setCheck(r); }, []);
   const [theme, setTheme] = useState(initialTheme);
   const [fontStep, setFontStep] = useState(() => { try { const f = localStorage.getItem("fedid.font"); return ["S", "M", "L"].includes(f) ? f : "M"; } catch { return "M"; } });
   const pickTheme = (next) => {
@@ -83,7 +87,7 @@ export default function App() {
     getJson(`/api/story?vertical=${encodeURIComponent(vertical)}`).then((j) => { if (live) { setStory(j); setError(null); } }, (e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [vertical]);
-  useEffect(() => { setGateway(null); }, [mode]); // a check from an earlier visit to Real is not shown on the next one
+  useEffect(() => { setGateway(null); setCheck({ phase: "checking" }); }, [mode]); // a check from an earlier visit to Real is not shown on the next one
   useEffect(() => { setVerifyUi(null); }, [vertical, mode]); // presets carry the cast, so a new vertical (or mode) gives a new editor; answers still in flight are dropped by their context tag
   useEffect(() => {
     const on = () => setTab(tabFromHash());
@@ -160,7 +164,16 @@ export default function App() {
         <p className="banner" role="status" data-state={mode === "live" ? "live" : "mock"} data-testid="banner">{banner}</p>
         {modeError && <p className="app-error" role="alert" data-testid="mode-error">{modeError}</p>}
         {!presenter && story && <p className="page-intro">{story.intro}</p>}
-        {mode === "live" && <><PrivilegeCheck primaryRetry onResult={setGateway} /><GatewayCheckTrace result={gateway} /></>}
+        {mode === "live" && (
+          <>
+            {/* the card starts a check when it opens and on its own button; the run panel below waits for it (a click on a button in the card counts) */}
+            <div onClickCapture={(e) => { if (e.target.closest?.("button")) setCheck({ phase: "checking" }); }}>
+              <PrivilegeCheck primaryRetry onResult={onCheck} />
+            </div>
+            <GatewayCheckTrace result={gateway} />
+            <RunObs source="real" vertical={vertical} check={check} />
+          </>
+        )}
         <p className="sr-only" role="status" aria-live="polite">{resetMsg}</p>
         <div id={`panel-${tab}`} className="page-panel">
           {error || lab.error ? <p className="app-error" role="alert">Could not load the lab ({error || lab.error}). Is the server running?</p> : !ready ? <p className="muted">Loading...</p> : (

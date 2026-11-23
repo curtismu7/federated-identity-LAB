@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { createApp, startHttpServer } from "../../server/src/app.js";
 import { createHealth } from "../../server/src/health.js";
 import { VERTICALS } from "../../server/src/cast.js";
+import { createRunLog } from "../../server/src/runObs.js";
 import App, { BANNER_UNKNOWN, TABS } from "./App";
 import { labelOffsets } from "./components/PatternDiagram";
 import { setJsonView } from "./components/JsonPane";
@@ -18,7 +19,7 @@ const C = VERTICALS.finance;
 let server; let base; const realFetch = globalThis.fetch; let seen = []; let gate = () => null; let consumed = [];
 beforeAll(async () => {
   const health = createHealth({ demoId: "federated-identity-lab", demoName: "Federated Identity LAB", version: "0.1.0", runChecks: () => [], allPassed: () => true, intervalMs: 3_600_000 });
-  ({ server, url: base } = await startHttpServer({ port: 0, host: "127.0.0.1", app: createApp({ health, configFile: "/nonexistent/customer.config.json" }) }));
+  ({ server, url: base } = await startHttpServer({ port: 0, host: "127.0.0.1", app: createApp({ health, configFile: "/nonexistent/customer.config.json", runLog: createRunLog({ write: () => {} }) }) }));
   base = base.replace(/\/$/, "");
   globalThis.fetch = async (u, init = {}) => {
     const url = typeof u === "string" && u.startsWith("/") ? `${base}${u}` : u;
@@ -281,6 +282,78 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
     expect(panel).toHaveTextContent(/Refusal probe/);
     expect(gatewayChecks()).toBe(1);
   }));
+
+  // Rule 27: "What each layer logged for this run". Mock: the scripted scenario on the Verify tab. Real: the run the gateway card's check made.
+  const gateOn = (re) => { let open; const p = new Promise((r) => { open = r; }); gate = (u) => (re.test(u) ? p : null); return open; };
+  const recordCalls = () => seen.filter((x) => /\/api\/run-observability\?runId=gw-/.test(x.url)).map((x) => x.url);
+
+  it("Rule 27 Mock: the Verify tab shows the scripted scenario's rows (simulated, numbered by step); another scenario shows loading, never the previous record, until its own arrives; no other tab shows the panel", async () => {
+    await mount(); await tab("Verify");
+    const panel = await screen.findByTestId("run-observability", {}, T);
+    expect(within(panel).getByTestId("ro-basis")).toHaveTextContent(/Simulated/);
+    expect(within(panel).getByTestId("ro-coverage-gateway")).toHaveAttribute("data-coverage", "simulated");
+    expect(within(panel).getByTestId("ro-coverage-resource")).toHaveAttribute("data-coverage", "not-logged");
+    expect(panel).toHaveTextContent(/Step 4: The lab's simulated gateway turned away the workload token for llm/);
+    const open = gateOn(/run-observability\?vertical=finance&scenario=fork-pr/);
+    await pick("scenario-pick", "fork-pr");
+    await waitFor(() => expect(screen.getByTestId("scenario-say")).toHaveTextContent(/pull request/), T);
+    await waitFor(() => expect(screen.getByTestId("ro-loading")).toBeInTheDocument(), T);
+    expect(screen.queryByTestId("run-observability")).toBeNull();
+    open();
+    const next = await screen.findByTestId("run-observability", {}, T);
+    expect(next).toHaveTextContent(/check 12 of 15/);
+    expect(next).not.toHaveTextContent(/for llm/);
+    await tab("Audit");
+    expect(screen.queryByTestId("run-observability")).toBeNull(); expect(screen.queryByTestId("ro-loading")).toBeNull();
+  });
+
+  it("Rule 27 Real: the panel sits under the gateway card, asks for the run that card's check made, shows the gateway's replies as response rows and no key; a second check shows loading, never the first run; Mock never shows a Real run", () => withRealGateway(async (KEY) => {
+    await mount(); await live();
+    const panel = await screen.findByTestId("run-observability", {}, T);
+    expect(within(panel).getByTestId("ro-basis")).toHaveTextContent(/Real:/);
+    expect(within(panel).getByTestId("ro-coverage-gateway")).toHaveAttribute("data-coverage", "response");
+    expect(within(panel).getByTestId("ro-coverage-person")).toHaveAttribute("data-coverage", "not-logged");
+    expect(panel).toHaveTextContent(/The gateway answered tools\/list with 1 tools for the agent key/);
+    expect(panel).toHaveTextContent(/HTTP 403 while the lab was opening or making the refusal probe/);
+    expect(screen.getByTestId("privilege-check").compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(recordCalls()).toHaveLength(1);
+    const first = recordCalls()[0];
+    // the next check: while its call is in flight the first run is not shown and nothing is asked; then the panel waits for the new run's own record
+    let openCheck; let openRecord;
+    const pCheck = new Promise((r) => { openCheck = r; }); const pRecord = new Promise((r) => { openRecord = r; });
+    gate = (u) => (/\/api\/gateway-check/.test(u) ? pCheck : /run-observability\?runId=/.test(u) ? pRecord : null);
+    await userEvent.click(screen.getByRole("button", { name: "Run the gateway check" }));
+    await waitFor(() => expect(screen.getByTestId("ro-loading")).toBeInTheDocument(), T);
+    expect(screen.queryByTestId("run-observability")).toBeNull();
+    expect(recordCalls()).toHaveLength(1);
+    openCheck();
+    await waitFor(() => expect(recordCalls()).toHaveLength(2), T);
+    expect(recordCalls()[1]).not.toBe(first);
+    expect(screen.queryByTestId("run-observability")).toBeNull();
+    const open = openRecord;
+    gate = () => null;
+    open();
+    await screen.findByTestId("run-observability", {}, T);
+    // Mock: no Real run on the page, and back in Real the panel waits for the new check's own run
+    await pickMode("mock");
+    await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T);
+    expect(screen.queryByTestId("run-observability")).toBeNull(); expect(screen.queryByTestId("ro-loading")).toBeNull();
+    await live();
+    await screen.findByTestId("run-observability", {}, T);
+    expect(new Set(recordCalls()).size).toBe(3);
+    expect(document.body.textContent).not.toContain(KEY);
+  }));
+
+  it("Rule 27 Real: with no gateway configured the check makes no run, so the panel says so and shows nothing older", async () => {
+    const keep = process.env.STANDALONE_ENV; process.env.STANDALONE_ENV = "/nonexistent/standalone.env";
+    try {
+      await mount(); await live();
+      const note = await screen.findByTestId("ro-no-run", {}, T);
+      expect(note).toHaveTextContent(/did not complete, so there is no run to show \(and no older one is shown in its place\)/);
+      expect(within(note).getByRole("alert")).toBeInTheDocument();
+      expect(screen.queryByTestId("run-observability")).toBeNull(); expect(recordCalls()).toHaveLength(0);
+    } finally { if (keep === undefined) delete process.env.STANDALONE_ENV; else process.env.STANDALONE_ENV = keep; }
+  });
 });
 
 describe("Verify: the real engine in Live", () => {

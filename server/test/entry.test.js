@@ -13,13 +13,17 @@ test('the entry installs the netguard first, before it can open any socket', () 
   assert.ok(src.indexOf('import { installNetguard }') < guard);
 });
 
+// The vendored run-observability core (rule 27) builds its masking patterns at run time from constants and from escaped ids (the shared tests time them on 100 KB hostile lines).
+// It is exempt from the ONE assertion "no regular expression is built at run time", by its exact file name, and from nothing else here.
+const BUILDS_PATTERNS = 'runObservability.js';
+
 test('no source file evals, uses vm or Function, builds a regular expression from input, writes a file, or reads process.env.MODE', () => {
   const dir = new URL('../src/', import.meta.url);
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js') && x !== 'gatewayReal.js')) {
     const code = fs.readFileSync(new URL(f, dir), 'utf8').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
     assert.ok(!/\beval\(|new Function\(|\bvm\./.test(code), `${f}: no eval, Function or vm`);
     assert.ok(!/writeFile|appendFile|createWriteStream|mkdirSync|rmSync|unlinkSync/.test(code), `${f}: the server writes no file`);
-    assert.ok(!/new RegExp\(/.test(code), `${f}: no regular expression is built at run time`);
+    if (f !== BUILDS_PATTERNS) assert.ok(!/new RegExp\(/.test(code), `${f}: no regular expression is built at run time`);
     assert.ok(!/process\.env\.MODE\b/.test(code), `${f}: a bare MODE is never read`);
     assert.ok(!/child_process|node:http'|node:https|node:net'/.test(code.replace("from 'node:net'", '')) || f === 'netguard.js', `${f}: no network or process modules`);
   }

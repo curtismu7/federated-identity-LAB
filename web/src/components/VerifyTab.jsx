@@ -4,6 +4,7 @@ import { decodeToken, labTime, tamper } from "../token";
 import { MAX_TOKEN } from "../browserVerify";
 import { compareResults, verifyInBrowser } from "../browserVerify";
 import GatewayTrace from "../gateway-trace/GatewayTrace";
+import RunObs from "./RunObs";
 import { ClaimTag, FieldSources, Hops, Json, Outcome, SourceTag, StatusTag, Verdict, VerifySteps } from "./Bits";
 
 // On the Verify tab this lab never contacts a real Privilege gateway (Mock and Live are both the lab's own simulated one; only the separate Real-mode gateway check does), so the panel says so instead of "Real mode shows the actual gateway".
@@ -116,6 +117,7 @@ export default function VerifyTab({ story, lab, vertical, mode, ctxGen, scenario
     <div className="stack">
       {ro && <p className="muted" data-testid="read-only-note">Mock only reads tables: switch to Live to mint and verify your own tokens (real RS256 on the lab's own keys).</p>}
       {ro && <Scenarios lab={lab} scenarioId={scenarioId} setScenarioId={setScenarioId} />}
+      {ro && lab.scenario && <RunObs source="mock" vertical={vertical} scenarioId={lab.scenario.id} />}
       {ro && (
         <section className="panel" data-testid="browser-live-only">
           <h2 className="panel__title">Verified in this browser (WebCrypto RS256) <SourceTag source="invented" label="lab-invented UI" /></h2>
