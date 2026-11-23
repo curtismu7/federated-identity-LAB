@@ -1,7 +1,7 @@
 // The lab's own states around the shared panel: loading (never the previous record), empty, an alert for any answer that is not a record, the mode
 // the record was made in, and no request when nothing changed. fetch is replaced by a script; the real route is exercised by the server tests and App.test.jsx.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import RunObs, { NOTE } from "./RunObs";
 import { setJsonView } from "./JsonPane.jsx";
 import { mockRecord, realRecord } from "../run-observability/fixtures";
@@ -96,6 +96,16 @@ describe("Mock", () => {
 });
 
 describe("Real", () => {
+  it("folds the Real record in a disclosure that starts closed, so the gateway card stays the first thing on the page and the record is one click away", async () => {
+    answers["/api/run-observability?runId=gw-1"] = ok({ record: { ...realRecord, runId: "gw-1" } });
+    render(realPanel({ phase: "done", runId: "gw-1" }));
+    const fold = await screen.findByTestId("ro-fold");
+    expect(fold.tagName).toBe("DETAILS"); expect(fold.open).toBe(false);
+    expect(fold.querySelector("summary")).toHaveTextContent(/What each layer logged for this run/);
+    expect(within(fold).getByTestId("run-observability")).toBeInTheDocument();
+    expect(within(fold).getByTestId("ro-lab-note")).toBeInTheDocument();
+  });
+
   it("waits for the page's gateway check: nothing is asked and nothing older is shown while it runs", async () => {
     render(realPanel({ phase: "checking" }));
     expect(screen.getByTestId("ro-loading")).toHaveTextContent("Collecting this run's logs");

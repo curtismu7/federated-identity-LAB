@@ -329,6 +329,7 @@ export async function answerFor({ source, table, runLog, query, verticalOf }) {
     return { status: 200, body: { record: await realRecord(run) } };
   }
   if (source === 'mock') {
+    // A runId is not read here on purpose: a Mock answer is always a Mock record, so a Real run's id can never bring back a Real record in Mock (the mode test pins it).
     const vertical = verticalOf(query.vertical);
     if (vertical === null) return fail(400, 'bad_vertical', 'there is no such pack');
     const sc = query.scenario;

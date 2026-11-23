@@ -71,10 +71,13 @@ export default function RunObs({ source, vertical, scenarioId, check }) {
   if (wait) return <Note testId={wait.id} role={wait.role}>{wait.text}</Note>;
   if (!answer || answer.key !== key) return <Note testId="ro-loading">Collecting this run's logs…</Note>; // never the previous record
   if (answer.record === null) return <Note testId="ro-no-run">{answer.message || "There is no run to show."}</Note>;
-  return (
-    <div className="obs">
+  const panel = (
+    <>
       <RunObservability record={answer.record} source={source} streams={LOG_STREAMS} />
       <p className="ro-muted" data-testid="ro-lab-note">{NOTE[real ? "real" : "mock"]}</p>
-    </div>
+    </>
   );
+  // Real sits under the gateway card on every tab, and the record is tall: it starts folded so the page keeps its shape, and one click opens it.
+  if (real) return <div className="obs"><details className="ro-fold" data-testid="ro-fold"><summary>{TITLE}</summary>{panel}</details></div>;
+  return <div className="obs">{panel}</div>;
 }

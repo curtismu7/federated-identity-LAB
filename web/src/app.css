@@ -138,3 +138,4 @@ main .pcard { max-width: none; }
 
 /* Rule 27: the shared "What each layer logged for this run" panel (and the lab's own notes around it) sits under the page's gateway trace in Real and under the scenarios in Mock. */
 .obs { margin: 12px 0 0; min-width: 0; }
+.ro-fold > summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
