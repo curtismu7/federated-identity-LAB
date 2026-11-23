@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { makeHostCheck, makeSameOriginWrites } from './safety.js';
 import { createHealth } from './health.js';
-import { loadCast, verticalFrom } from './cast.js';
+import { DEFAULT_VERTICAL, VERTICALS, loadCast, verticalFrom } from './cast.js';
 import { defaultMode, modeOf } from './config.js';
 import { buildStory } from './story.js';
 import { DIAGRAM_NAMES, buildDiagram } from './diagramData.js';
@@ -22,6 +22,8 @@ import { buildMethodTable, charsetProblem, isPageAddress, methodNotAllowed } fro
 import { doorConfig, createRealDoor } from './gatewayReal.js';
 import { traceFromDoor } from './gatewayTrace.js';
 import { setAllowedOrigins } from './netguard.js';
+import { RunObsError } from './runObservability.js';
+import { answerFor, createRunLog, eventsOf, reportFailure, safely } from './runObs.js';
 
 // Real mode = the shared gateway hop: an agent key from the shared settings file calling a live Privilege door.
 // The environment wins over the file: FID_* variables overlay the parsed file text.
@@ -41,7 +43,7 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 // path -> allowed methods: the ONE route table. It decides the 405 (with Allow) and which paths are the API's own; every route below is registered through on(), so the table
 // cannot drift from the routes. ":name" is one segment; HEAD is allowed wherever GET is.
-export function createApp({ health = createHealth({ demoId: 'federated-identity-lab', demoName: 'Federated Identity LAB', version: '0.1.0', runChecks: () => [], allPassed: () => true }), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env, proxyHosts = new Set() } = {}) {
+export function createApp({ health = createHealth({ demoId: 'federated-identity-lab', demoName: 'Federated Identity LAB', version: '0.1.0', runChecks: () => [], allPassed: () => true }), configFile = CONFIG, workspaces = createWorkspaces(), table = MOCK_TABLE, env = process.env, proxyHosts = new Set(), runLog = createRunLog() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.set('etag', false);
@@ -107,16 +109,41 @@ export function createApp({ health = createHealth({ demoId: 'federated-identity-
     if (!door.apps.includes(app)) return res.status(400).json({ error: 'bad_app', detail: `app must be one of ${door.apps.join(', ')}` });
     const caller = req.body?.caller && door.callers.some((c) => c.id === req.body.caller) ? req.body.caller : door.callers[0].id;
     setAllowedOrigins([door.origin]); // the netguard lets the Real hop reach exactly this gateway origin and nothing else
+    // Rule 27: each answer the lab receives is one stdout line and one `response` row of this run. The run's id goes back so the page asks for THIS run's record. Every recorder
+    // call is guarded: a recorder that throws never changes the check. A call's time is read before it is made: the helper also waits for a session close after the answer.
+    const check = safely('begin-check', () => runLog.beginCheck(caller));
+    const sentAt = () => safely('clock', () => check?.now()) ?? Date.now();
+    let sent = sentAt();
     const { wire: listWire, ...listing } = await door.list(app, caller);
+    safely('tools-list-reply', () => check?.reply('tools/list', listing, sent));
     const out = { app, caller, gateway: door.origin, listing };
     // "What Privilege did" (Rule 25): a Real trace is built from the hop's own capture, so every decision is observed or inferred, never checked.
     const trace = { listing: traceFromDoor({ ...listing, wire: listWire }, { rpcMethod: 'tools/list' }) };
     if (listing.ok) {
+      sent = sentAt();
       const { wire: probeWire, ...probe } = await door.call(app, caller, 'federated_identity_refusal_probe_tool', {});
+      safely('probe-reply', () => check?.reply('probe', probe, sent));
       out.refusal = probe;
       trace.refusal = traceFromDoor({ ...probe, wire: probeWire }, { rpcMethod: 'tools/call' });
+    } else safely('probe-skipped', () => check?.skipped('The refusal probe is only sent after tools/list is answered with a tool list; it was not sent.'));
+    safely('end-check', () => check?.end());
+    res.json({ ...out, trace, ...(check ? { runId: check.id } : {}) });
+  });
+
+  // The record of one run (rule 27). Mock: the recorded scenario's events (built from the table's steps). Real: what the lab received on a gateway check (the newest, or ?runId=).
+  // A run is only ever returned in the mode it was made in: the route follows the server's current mode, and a Real run is never built from a Mock table or the other way round.
+  // Live (the lab's own local engine, which the wire calls real) is not a Real record: only the gateway check is.
+  on('get', '/run-observability', async (req, res) => {
+    noStore(res);
+    const verticalOfQuery = (v) => (v === undefined ? DEFAULT_VERTICAL : typeof v === 'string' && Object.hasOwn(VERTICALS, v) ? v : null);
+    try {
+      const { status, body } = await answerFor({ source: toSource(current), table, runLog, query: req.query, verticalOf: verticalOfQuery });
+      return res.status(status).json(body);
+    } catch (err) {
+      if (err instanceof RunObsError) return res.status(err.status).json({ error: err.code, message: err.message });
+      reportFailure('record', err);
+      return res.status(500).json({ error: 'run_record_failed', message: 'The record of this run could not be built; the server log says why.' });
     }
-    res.json({ ...out, trace });
   });
   on('get', '/state', workspace, (req, res) => {
     const id = req.ws;
@@ -156,6 +183,8 @@ export function createApp({ health = createHealth({ demoId: 'federated-identity-
         const r = runAction({ ws: id, workspaces, vertical, cast: castFor(req), op, params: params(req), traceparent: req.headers.traceparent, route: { method: method.toUpperCase(), url: `/api${route}` } });
         res.set('traceparent', r.traceparent);
         const common = { workspace: id, mode, vertical, hops: r.hops, hopsTruncated: r.hopsTruncated, traceId: r.traceId, state: r.state };
+        // Rule 27: each decision this Live action made is one stdout line (a recorder that throws never changes the answer or the audit).
+        safely('live-decisions', () => runLog.live(eventsOf({ op, ...r.outcome, status: r.outcome.ok ? 200 : r.outcome.status }), r.state.clock.at));
         if (op === 'verify') { // "What Privilege did": the lab's own gateway's call, with the decisions it computed (null when the request never reached it)
           const hop = r.hops.find((h) => h.label === 'gateway verifies the token');
           const gatewayTrace = liveVerifyTrace({ cast: castFor(req), result: r.outcome.result, token: params(req).token, traceparent: hop?.request?.headers?.traceparent });

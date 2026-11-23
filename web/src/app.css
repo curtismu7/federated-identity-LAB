@@ -135,3 +135,6 @@ td.toggles > button { margin: 2px 4px 2px 0; }
    request and response boxes have room. The button gets normal space above the trace's heading. */
 main .pcard { max-width: none; }
 .pcard__retry + .gw-trace { margin-top: 16px; }
+
+/* Rule 27: the shared "What each layer logged for this run" panel (and the lab's own notes around it) sits under the page's gateway trace in Real and under the scenarios in Mock. */
+.obs { margin: 12px 0 0; min-width: 0; }
