@@ -22,7 +22,7 @@ function PolicyForm({ story, lab, sensor }) {
         {lab.state.namespaces.map((n) => <label key={n} className="check"><input type="checkbox" disabled={all} checked={!all && ns.includes(n)} onChange={() => toggle(n)} data-testid={`scope-ns-${n}`} /> namespace {visible(n)}</label>)}
       </fieldset>
       <div className="filters">{story.findingKinds.map((k) => <label key={k}>{k}<select value={actions[k]} onChange={(e) => setActions((a) => ({ ...a, [k]: e.target.value }))} data-testid={`action-${k}`}>{story.policyActions.map((a) => <option key={a} value={a}>{a}</option>)}</select></label>)}</div>
-      <p><button type="button" className="primary" disabled={lab.readOnly || lab.busy} onClick={save} data-testid="policy-save">Save policy</button></p>
+      <p><button type="button" disabled={lab.readOnly || lab.busy} onClick={save} data-testid="policy-save">Save policy</button></p>
       <p className="muted">Audit mode records every decision that would have blocked, without blocking. Nothing is terminated in the lab: "blocked" is a recorded outcome. The console swagger names seven actions (including RequireApproval, Enforce, Exempt) and a Disabled flag; the lab follows the deck's modes and four actions.</p>
       <Outcome last={lab.last} prefix="/policy" />
     </section>
@@ -62,7 +62,7 @@ function ReportForm({ story, lab, sensor }) {
       <p className="toggles">
         <button type="button" disabled={findings.length >= s.limits.findingsPerReport} onClick={() => setFindings((fs) => [...fs, { ...newFinding(s), kind: "mcp-server", name: "ledger-tools", pod: "tools-0", namespace: s.namespaces[1] }])} data-testid="r-add">Add a finding</button>
         <button type="button" disabled={findings.length < 2} onClick={() => setFindings((fs) => fs.slice(0, -1))}>Remove the last</button>
-        <button type="button" className="primary" disabled={lab.readOnly || lab.busy} onClick={send} data-testid="r-send">Send the report</button>
+        <button type="button" disabled={lab.readOnly || lab.busy} onClick={send} data-testid="r-send">Send the report</button>
       </p>
       {result && (
         <div data-testid="report-result">

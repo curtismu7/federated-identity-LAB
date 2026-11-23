@@ -134,7 +134,7 @@ export default function IdentitiesTab({ story, lab }) {
         </div>
         <fieldset className="fieldset"><legend>Scopes</legend>{["mcp", "a2a", "llm", "shadowai:write", "policy:read"].map((sc) => <label key={sc} className="check"><input type="checkbox" checked={scopes.includes(sc)} onChange={() => toggleScope(sc)} data-testid={`k-scope-${sc}`} /> {sc}</label>)}</fieldset>
         <p className="toggles">
-          <button type="button" className="primary" disabled={ro || lab.busy} onClick={() => createKey()} data-testid="key-add">Create key</button>
+          <button type="button" disabled={ro || lab.busy} onClick={() => createKey()} data-testid="key-add">Create key</button>
           <button type="button" disabled={ro || lab.busy || kind !== "identity"} onClick={() => createKey({ ownFederation: true })} data-testid="key-both-federation">Try: the key also carries its own workload identity</button>
           <button type="button" disabled={ro || lab.busy || kind !== "identity"} onClick={() => createKey({ userRef: people[0].id })} data-testid="key-both-person">Try: the key also names a person</button>
         </p>
