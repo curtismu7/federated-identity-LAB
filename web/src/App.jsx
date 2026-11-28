@@ -15,6 +15,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import useLab from "./hooks/useLab";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import TalkTrackDialog from "./talk-track/TalkTrackDialog.jsx";
+import HelpDialog from "./help-dialog/HelpDialog.jsx";
+import { HELP_SECTIONS } from "./helpContent";
 import { getJson, postJson, resetWorkspace } from "./api";
 import PrivilegeCheck from "./privilege-check/PrivilegeCheck.jsx";
 import GatewayCheckTrace from "./components/GatewayCheckTrace";
@@ -59,6 +61,7 @@ export default function App() {
   const [tab, setTab] = useState(tabFromHash());
   const [presenter, setPresenter] = useState(false);
   const [talkOpen, setTalkOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [resetMsg, setResetMsg] = useState("");
   const [pending, setPending] = useState(null);
@@ -154,7 +157,7 @@ export default function App() {
           fontSize={{ value: fontStep, onChange: setFontStep }}
           present={{ active: presenter, onToggle: () => setPresenter((v) => !v) }}
           talkTrack={{ active: talkOpen, onToggle: () => setTalkOpen((v) => !v) }}
-          help={{ href: "https://github.com/curtismu7/federated-identity-LAB#readme" }}
+          help={{ onClick: () => setHelpOpen(true), title: "What this lab is, and what is simulated" }}
           version={LAB_VERSION}
           onReset={reset}
         >
@@ -207,6 +210,7 @@ export default function App() {
       </main>
 
       <TalkTrackDialog isOpen={talkOpen} onClose={() => setTalkOpen(false)} talk={story?.talkTrack ?? []} />
+      <HelpDialog isOpen={helpOpen} onClose={() => setHelpOpen(false)} sections={HELP_SECTIONS} docsUrl="https://github.com/curtismu7/federated-identity-LAB#readme" />
     </div>
   );
 }
