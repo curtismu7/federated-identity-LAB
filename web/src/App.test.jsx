@@ -8,7 +8,7 @@ import { createApp, startHttpServer } from "../../server/src/app.js";
 import { createHealth } from "../../server/src/health.js";
 import { VERTICALS } from "../../server/src/cast.js";
 import { createRunLog } from "../../server/src/runObs.js";
-import App, { BANNER_UNKNOWN, TABS } from "./App";
+import App, { MODE_LINES, TABS } from "./App";
 import { labelOffsets } from "./components/PatternDiagram";
 import { setJsonView } from "./components/JsonPane";
 import { decodeToken, tamper } from "./token";
@@ -40,7 +40,7 @@ const mount = async () => { render(<App />); await screen.findByTestId("identiti
 const tab = (name) => userEvent.click(screen.getByRole("link", { name })); // the shell-bar nav pills
 const click = (id) => userEvent.click(screen.getByTestId(id));
 const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
-const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
+const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live")); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
 const setValue = (id, value) => fireEvent.change(screen.getByTestId(id), { target: { value } });
 const pick = (id, value) => userEvent.selectOptions(screen.getByTestId(id), value);
 const wholePageText = () => { const c = document.body.cloneNode(true); c.querySelectorAll("textarea,input").forEach((n) => n.remove()); return c.textContent; };
@@ -60,39 +60,74 @@ const verifyPreset = async (id, { service, tamperIt = false } = {}) => {
 };
 
 describe("shell", () => {
-  it("says it is simulated and UNVERIFIED on every tab, in presenter mode too, and shows the mode", async () => {
+  it("opens on a MOCK modal that says simulated and UNVERIFIED (no banner); every tab still tags its claims, in presenter mode too", async () => {
     await mount();
-    expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/);
+    const modal = screen.getByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "mock");
+    expect(modal).toHaveTextContent("MOCK");
+    expect(modal).toHaveTextContent(/Simulated/); expect(modal).toHaveTextContent(/UNVERIFIED on our tenant/); expect(modal).toHaveTextContent(/release 2026-11-02/);
+    expect(modal.textContent).toContain(MODE_LINES.mock);
+    expect(screen.queryByTestId("banner")).toBeNull(); expect(document.querySelector(".banner")).toBeNull();
     expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock");
+    await click("mode-modal-ok");
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
     for (const t of TABS) {
       await tab(t.label);
-      expect(screen.getByTestId("banner")).toHaveTextContent(/UNVERIFIED on our tenant/);
       expect((await screen.findAllByTestId("claim-tag", {}, T)).length).toBeGreaterThan(0);
     }
     await tab("Federated Identity");
     await userEvent.keyboard("p");
     expect(screen.getByTestId("presenter-say")).toBeInTheDocument();
-    expect(screen.getByTestId("banner")).toHaveTextContent(/SIMULATED/); expect(screen.getByTestId("banner")).toHaveTextContent(/UNVERIFIED on our tenant/);
     expect(screen.getByTestId("presenter")).toHaveTextContent("Exit present");
-    for (const t of TABS.filter((x) => x.id !== "talk")) { await tab(t.label); expect(screen.getByTestId("presenter-say")).toBeInTheDocument(); expect(screen.getByTestId("banner")).toHaveTextContent(/UNVERIFIED/); }
+    for (const t of TABS.filter((x) => x.id !== "talk")) { await tab(t.label); expect(screen.getByTestId("presenter-say")).toBeInTheDocument(); expect((await screen.findAllByTestId("claim-tag", {}, T)).length).toBeGreaterThan(0); }
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByTestId("presenter-say")).toBeNull();
-    expect(BANNER_UNKNOWN).toMatch(/UNVERIFIED/);
+    expect(MODE_LINES.mock).toMatch(/UNVERIFIED/); expect(MODE_LINES.real).toMatch(/UNVERIFIED/); expect(MODE_LINES.unknown).toMatch(/UNVERIFIED/);
   });
 
-  it("the banner before the mode is known is honest in both modes: the engine is local, the gateway check is Real only and goes out only when configured", () => {
-    expect(BANNER_UNKNOWN).toMatch(/engine is loopback only/);
-    expect(BANNER_UNKNOWN).toMatch(/Privilege gateway check goes out only in Real mode, and only when run with a gateway configured/);
-    expect(BANNER_UNKNOWN).not.toMatch(/no outbound network|Nothing here calls/i);
+  it("the modal line before the mode is known is honest in both modes: the engine is local, the gateway check is Real only and goes out only when configured", () => {
+    expect(MODE_LINES.unknown).toMatch(/engine is loopback only/);
+    expect(MODE_LINES.unknown).toMatch(/Privilege gateway check goes out only in Real mode, and only when run with a gateway configured/);
+    expect(MODE_LINES.unknown).not.toMatch(/no outbound network|Nothing here calls|touching no/i);
+    expect(MODE_LINES.real).toMatch(/real RS256 signing and verification on your tokens, loopback only/);
+    expect(MODE_LINES.real).toMatch(/only the Privilege gateway check goes out, and only when run with a gateway configured/);
+    expect(MODE_LINES.mock).not.toMatch(/goes out/);
   });
 
-  it("the banner and the mode chip follow the toggle, in both directions, on every tab", async () => {
+  it("until /api/info answers the modal says MOCK with the unknown-mode line; then it follows the server: MOCK stays, a Live server shows REAL", async () => {
+    let release; const held = new Promise((r) => { release = r; });
+    gate = (u) => (u.endsWith("/api/info") ? held : null);
+    render(<App />);
+    const first = await screen.findByTestId("mode-modal");
+    expect(first).toHaveAttribute("data-mode", "mock"); expect(first.textContent).toContain(MODE_LINES.unknown);
+    release();
+    await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"), T);
+    expect(screen.getByTestId("mode-modal").textContent).toContain(MODE_LINES.mock);
+    cleanup(); gate = () => null; await mount();
+    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live"));
+    cleanup(); sessionStorage.clear();
+    let release2; const held2 = new Promise((r) => { release2 = r; });
+    gate = (u) => (u.endsWith("/api/info") ? held2 : null);
+    render(<App />);
+    expect((await screen.findByTestId("mode-modal"))).toHaveAttribute("data-mode", "mock");
+    release2();
+    await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "real"), T);
+    expect(screen.getByTestId("mode-modal").textContent).toContain(MODE_LINES.real);
+    expect(screen.getByTestId("mode-modal")).toHaveTextContent("REAL");
+  });
+
+  it("the modal and the mode chip follow the toggle, in both directions, on every tab; Got it keeps the mode's modal closed for the session", async () => {
     await mount();
     for (const t of TABS) {
       await tab(t.label);
-      await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live");
-      await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/)); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock");
+      await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "real")); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live");
+      await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "mock")); expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock");
     }
+    await click("mode-modal-ok");
+    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "real"));
+    await click("mode-modal-ok");
+    await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
   });
 
   it("rule 19: the mode is server-backed — each switch POSTs /api/mode with exactly {source}, the mode survives a reload, and storage is not needed", async () => {
@@ -100,7 +135,7 @@ describe("shell", () => {
     seen.length = 0;
     await pickMode("real");
     expect(seen.some((r) => r.url.endsWith("/api/mode") && r.body === JSON.stringify({ source: "real" }))).toBe(true);
-    cleanup(); render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T);
+    cleanup(); render(<App />); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live"), T);
     expect(window.localStorage.getItem("fid.mode")).toBeNull();
     // a bad body is refused 400
     const r = await fetch(`${base}/api/mode`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ source: "live" }) });
@@ -109,16 +144,16 @@ describe("shell", () => {
     // a blocked storage never breaks the page: the server holds the mode
     cleanup(); const desc = Object.getOwnPropertyDescriptor(window, "localStorage");
     Object.defineProperty(window, "localStorage", { configurable: true, get() { throw new Error("blocked"); } });
-    try { render(<App />); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T); }
+    try { render(<App />); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live"), T); await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"), T); }
     finally { Object.defineProperty(window, "localStorage", desc); }
   });
 
-  it("shell bar first, then main with the banner first; the nav pills mark the current section and the URL hash follows; talks only to its own origin", async () => {
+  it("shell bar first, then main with no banner; the nav pills mark the current section and the URL hash follows; talks only to its own origin", async () => {
     await mount();
     const bar = document.querySelector("header.shell-bar");
     expect(bar).not.toBeNull(); expect(document.querySelectorAll("header")).toHaveLength(1);
     expect(bar.nextElementSibling).toBe(document.querySelector("main"));
-    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
+    expect(screen.queryByTestId("banner")).toBeNull();
     expect(bar.querySelector(".shell-brand h1")).toHaveTextContent("Federated Identity LAB"); expect(document.querySelectorAll("h1")).toHaveLength(1);
     expect(bar.querySelector(".shell-brand [data-testid=mode]")).toHaveTextContent("Mode: mock");
     expect(bar.querySelector(".shell-right[data-testid=top-menu]")).not.toBeNull();
@@ -336,7 +371,7 @@ describe("Verify: What Privilege did (Rule 25 gateway trace)", () => {
     await screen.findByTestId("run-observability", {}, T);
     // Mock: no Real run on the page, and back in Real the panel waits for the new check's own run
     await pickMode("mock");
-    await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T);
+    await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"), T);
     expect(screen.queryByTestId("run-observability")).toBeNull(); expect(screen.queryByTestId("ro-loading")).toBeNull();
     await live();
     await screen.findByTestId("run-observability", {}, T);
@@ -652,7 +687,7 @@ describe("Reset and stale answers", () => {
     let release; const held = new Promise((r) => { release = r; });
     gate = (u) => (u.includes("/api/clock") ? held : null);
     await click("advance-5"); await pickMode("mock");
-    await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T);
+    await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"), T);
     await waitFor(() => expect(screen.getByTestId("clock-now")).toHaveTextContent(/09:00:00 UTC/), T);
     release();
     await waitFor(() => expect(consumed.some((u) => u.includes("/api/clock"))).toBe(true), T);

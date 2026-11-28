@@ -33,7 +33,7 @@ const mount = async () => { render(<App />); await screen.findByTestId("identiti
 const tab = (name) => userEvent.click(screen.getByRole("link", { name })); // the shell-bar nav pills
 const click = (id) => userEvent.click(screen.getByTestId(id));
 const pickMode = (value) => userEvent.selectOptions(screen.getByTestId("mode-select"), value);
-const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/)); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
+const live = async () => { await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live")); await waitFor(() => expect(screen.getByTestId("revoke-fid-001")).toBeEnabled(), T); };
 const setValue = (id, value) => fireEvent.change(screen.getByTestId(id), { target: { value } });
 const pick = (id, value) => userEvent.selectOptions(screen.getByTestId(id), value);
 const settled = async (v) => { await waitFor(() => expect(screen.getByTestId("vertical-select").value).toBe(v), T); await waitFor(() => expect(screen.queryByTestId("settling")).toBeNull(), T); expect(screen.queryByTestId("render-error")).toBeNull(); };
@@ -60,8 +60,8 @@ describe("a verdict started under one vertical or mode never lands in another", 
     await mount(); await live(); await mintPreset("k8s-right");
     const release = holdOnce("/api/verify");
     await click("verify");
-    await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/MOCK mode/), T);
-    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T); await waitFor(() => expect(screen.queryByTestId("settling")).toBeNull(), T);
+    await pickMode("mock"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: mock"), T);
+    await pickMode("real"); await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live"), T); await waitFor(() => expect(screen.queryByTestId("settling")).toBeNull(), T);
     release(); await releaseAfter("/api/verify");
     await tab("Verify"); await waitFor(() => expect(screen.getByTestId("mint")).toBeEnabled(), T);
     freshEditor();
