@@ -21,6 +21,7 @@ import { getJson, postJson, resetWorkspace } from "./api";
 import PrivilegeCheck from "./privilege-check/PrivilegeCheck.jsx";
 import GatewayCheckTrace from "./components/GatewayCheckTrace";
 import RunObs from "./components/RunObs";
+import ModeModal from "./mode-modal/ModeModal.jsx";
 
 export const TABS = [
   { id: "identities", label: "Federated Identity" },
@@ -32,9 +33,14 @@ export const TABS = [
   { id: "diagram", label: "Diagram" },
   { id: "talk", label: "Talk track" },
 ];
-// The banner is never blank and never claims one mode before it knows: until the story answers it says both, honestly.
-const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02). Nothing else touches a tenant, gateway, issuer or cluster.";
-export const BANNER_UNKNOWN = `SIMULATED, MOCK or LIVE mode: the lab's own engine is loopback only. The Privilege gateway check goes out only in Real mode, and only when run with a gateway configured. ${TAIL}`;
+// The Real-or-mock modal's lines (it replaced the simulation banner; the lab calls its Real mode "Live"). The UNVERIFIED claim label stays in every line.
+// Until the story answers which mode the server holds, the modal says MOCK with the line that is honest in both modes: the engine is local, the gateway check is Real only.
+const TAIL = "Every product claim is a Ping release claim, UNVERIFIED on our tenant (release 2026-11-02).";
+export const MODE_LINES = {
+  mock: `Simulated: tables generated from the lab's own engine, read-only, touching no tenant, gateway, issuer or cluster. ${TAIL}`,
+  real: `Live: the lab's own local engine, still a simulation, does real RS256 signing and verification on your tokens, loopback only; only the Privilege gateway check goes out, and only when run with a gateway configured. ${TAIL}`,
+  unknown: `Simulated, mode not known yet: the lab's own engine is loopback only, and the Privilege gateway check goes out only in Real mode, and only when run with a gateway configured. ${TAIL}`,
+};
 const WRITE_TABS = ["identities", "verify", "issuers", "sensors", "audit"];
 // Tabs that draw their own primary action. The gateway card's button is primary only on the other tabs (one primary per view state).
 const OWN_PRIMARY_TABS = ["identities", "verify", "sensors", "diagram"];
@@ -99,7 +105,7 @@ export default function App() {
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
-  // Rule 19: switching is a server call (POST /api/mode with exactly {source}), then the data reloads so the banner,
+  // Rule 19: switching is a server call (POST /api/mode with exactly {source}), then the data reloads so the modal,
   // mode chip and every tab reflect the mode the server answered with.
   const [modeError, setModeError] = useState(null);
   const setMode = async (m) => {
@@ -131,7 +137,7 @@ export default function App() {
     setResetMsg(ok ? "Reset: your workspace's identities, keys, issuers, audit log, sensors, findings and lab clock are back to the start, and the diagram is back in place." : "Reset failed on the server; the view was reloaded.");
   }, [lab.reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const banner = story && mode ? story.banner[mode] : BANNER_UNKNOWN;
+  const modeLines = { mock: mode ? MODE_LINES.mock : MODE_LINES.unknown, real: MODE_LINES.real };
   const ready = story && mode;
   // Every tab draws only when the story, the lab state and the chosen vertical and mode all agree: a late answer for the previous vertical never meets the new one.
   const settled = !!(story && lab.state && story.vertical === vertical && lab.data?.vertical === vertical && lab.data?.mode === mode);
@@ -166,7 +172,6 @@ export default function App() {
         </TopMenu>
       </header>
       <main className="page">
-        <p className="banner" role="status" data-state={mode === "live" ? "live" : "mock"} data-testid="banner">{banner}</p>
         {modeError && <p className="app-error" role="alert" data-testid="mode-error">{modeError}</p>}
         {!presenter && story && <p className="page-intro">{story.intro}</p>}
         {mode === "live" && (
@@ -210,6 +215,7 @@ export default function App() {
       </main>
 
       <TalkTrackDialog isOpen={talkOpen} onClose={() => setTalkOpen(false)} talk={story?.talkTrack ?? []} />
+      <ModeModal mode={mode === "live" ? "real" : "mock"} lines={modeLines} storageKey="fid-mode" />
       <HelpDialog isOpen={helpOpen} onClose={() => setHelpOpen(false)} sections={HELP_SECTIONS} docsUrl="https://github.com/curtismu7/federated-identity-LAB#readme" />
     </div>
   );

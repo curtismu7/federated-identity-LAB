@@ -38,7 +38,7 @@ async function openLiveTab(name) {
   render(<App />);
   await screen.findByTestId("identities", {}, T);
   await userEvent.selectOptions(screen.getByTestId("mode-select"), "real");
-  await waitFor(() => expect(screen.getByTestId("banner")).toHaveTextContent(/LIVE mode/), T);
+  await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mode: live"), T);
   await userEvent.click(screen.getByRole("link", { name: LINKS[name] }));
   await waitFor(() => expect(screen.getByTestId("privilege-check")).toBeInTheDocument(), T);
   await waitFor(() => expect(document.querySelector(`#panel-${name}`)).not.toBeNull(), T);
